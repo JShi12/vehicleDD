@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# Claude Code tooling scaffolding (not part of the project deliverable)
+.claude/
+CLAUDE.md
+
+# Data (downloaded separately, too large for git)
+data/
+
+# Ultralytics run artifacts (local smoke tests / scratch)
+runs/
+
+# Model weights (large; cherry-pick specific ones back in with git add -f if needed)
+*.pt
+*.pth

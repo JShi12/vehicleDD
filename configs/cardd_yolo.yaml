@@ -1,0 +1,11 @@
+path: /Users/jing/Documents/vehicleDD/data/cardd_yolo
+train: images/train2017
+val: images/val2017
+test: images/test2017
+names:
+  0: dent
+  1: scratch
+  2: crack
+  3: glass shatter
+  4: lamp broken
+  5: tire flat
