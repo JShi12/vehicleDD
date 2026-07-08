@@ -7,8 +7,11 @@ dataset.
 
 ## Scope
 
-This is the **detection** component only — the input stage of a larger architecture (damage
-detection → structured condition vector → effort/decision model) that isn't implemented here.
+This repository implements only the damage detection component of a larger end-to-end vehicle condition assessment pipeline.
+
+The implemented component detects visible vehicle damage (e.g. dents, scratches, cracks and broken glass) from individual images using an object detection model. The detector is intended to provide the visual evidence for subsequent stages of the system.
+
+This repo covers training and evaluation only, producing a trained model artifact (`best.pt`) and its measured performance. It does not include an inference service — no API, batching, or deployment packaging for running the model against new images in production.
 
 ## Dataset
 
