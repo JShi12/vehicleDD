@@ -3,17 +3,12 @@
 A narrow-component proof of concept for the visual-damage-detection stage of a vehicle
 reconditioning-effort assessment system (see problem framing below). This implements and
 evaluates a YOLO11 damage detector against the public [CarDD](https://cardd-ustc.github.io/)
-dataset, per the brief: *"a rough baseline is fine — we're not scoring accuracy, we're looking
-at how you set up the problem, your train/val/test discipline, and whether you read your
-results honestly."*
+dataset.
 
 ## Scope
 
 This is the **detection** component only — the input stage of a larger architecture (damage
 detection → structured condition vector → effort/decision model) that isn't implemented here.
-It answers one question: *can a detector fine-tuned on public damage data, under a real
-labeling-budget constraint, localize and classify visible vehicle damage — and how honestly can
-we characterize where it currently fails?*
 
 ## Dataset
 
@@ -67,11 +62,7 @@ python scripts/convert_coco_to_yolo.py    # -> data/cardd_yolo/, configs/cardd_y
 python scripts/verify_conversion.py       # -> outputs/sanity/
 ```
 
-Actual training happened on Kaggle (free T4 GPU) rather than locally — this machine has no CUDA
-GPU, only Apple MPS, which local timing probes showed would take ~4.5 min/epoch (~7.5 hours for
-100 epochs) versus ~36 sec/epoch (~1 hour) on a Kaggle T4. `notebooks/01_cardd_yolo11n.ipynb` is
-the single source of truth for the reported run: it re-runs the same COCO→YOLO conversion used
-locally against the raw dataset, not a pre-converted copy.
+Actual training happened on Kaggle (free T4 GPU) rather than locally .`notebooks/01_cardd_yolo11n.ipynb` is the single source of truth for the reported run: it re-runs the same COCO→YOLO conversion used locally against the raw dataset, not a pre-converted copy.
 
 ## Problem setup
 
@@ -123,7 +114,7 @@ Val and test agree closely — no indication of overfitting to the validation se
 
 ![Class distribution](outputs/eda/class_counts.png)
 
-## Reading the results honestly
+## Results Analysis
 
 **The per-class pattern runs opposite to what the class-imbalance chart above would predict.**
 Dent and scratch — by far the *most common* classes in training (1,806 and 2,560 instances) —
