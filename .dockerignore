@@ -1,0 +1,13 @@
+.venv/
+data/
+runs/
+mlruns/
+outputs/
+notebooks/
+tests/
+.git/
+.github/
+__pycache__/
+*.pyc
+*.pt
+*.pth

@@ -1,0 +1,13 @@
+name: cardd_yolo11n
+description: "Ultralytics defaults, YOLO11n, imgsz=640 (matches notebooks/01_cardd_yolo11n.ipynb)"
+model:
+  variant: yolo11n
+train:
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  seed: 0
+  deterministic: true
+  patience: 20
+  device: 0
+  cache: ram

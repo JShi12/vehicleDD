@@ -16,6 +16,17 @@ data/
 # Ultralytics run artifacts (local smoke tests / scratch)
 runs/
 
+# MLflow local tracking store (accumulates full weight-directory copies per run)
+mlruns/
+
 # Model weights (large; cherry-pick specific ones back in with git add -f if needed)
 *.pt
 *.pth
+
+# Python packaging
+*.egg-info/
+build/
+dist/
+
+# pytest
+.pytest_cache/

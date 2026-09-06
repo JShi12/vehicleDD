@@ -1,0 +1,15 @@
+name: cardd_yolo11n_imgsz1024
+description: >
+  Identical to 01_baseline except imgsz=1024 (matches
+  notebooks/02_kaggle-yolo11-cardd-imgsz.ipynb) - isolates the effect of input resolution.
+model:
+  variant: yolo11n
+train:
+  epochs: 100
+  imgsz: 1024
+  batch: 16
+  seed: 0
+  deterministic: true
+  patience: 20
+  device: 0
+  cache: ram

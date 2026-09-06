@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      # CPU-only torch, same as the Dockerfile - CI runners have no GPU and this is much faster
+      # to install than the default CUDA-enabled wheels.
+      - run: pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+      - run: pip install -e ".[dev,train]"
+      - run: pytest -q
+
+  docker-smoke:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t cardd-service:ci .
+      - name: Boot the container with a random-init model (no real weights/data in CI)
+        run: |
+          docker run -d --name cardd-ci -p 8000:8000 -e CARDD_MODEL_SOURCE=random-init cardd-service:ci
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          echo "Service did not become healthy in time"; docker logs cardd-ci; exit 1
+      - name: Hit /predict with a real test image
+        run: |
+          curl -sf -o /tmp/test.jpg https://raw.githubusercontent.com/ultralytics/assets/main/im/bus.jpg
+          response=$(curl -sf -w '\n%{http_code}' -X POST http://localhost:8000/predict -F "file=@/tmp/test.jpg")
+          code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          test "$code" = "200"
+          echo "$body" | grep -q '"detections"'
+      - if: always()
+        run: docker logs cardd-ci && docker rm -f cardd-ci

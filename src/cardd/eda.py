@@ -7,17 +7,15 @@ from pathlib import Path
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
-DATA_ROOT = Path("data/CarDD_release/CarDD_COCO")
 SPLITS = ["train2017", "val2017", "test2017"]
-OUT_DIR = Path("outputs/eda")
 
 
-def load_split(split):
-    with open(DATA_ROOT / "annotations" / f"instances_{split}.json") as f:
+def load_split(data_root: Path, split: str) -> dict:
+    with open(Path(data_root) / "annotations" / f"instances_{split}.json") as f:
         return json.load(f)
 
 
-def class_counts_table(data_by_split):
+def class_counts_table(data_by_split: dict) -> tuple[list[str], dict]:
     id2name = {c["id"]: c["name"] for c in data_by_split["train2017"]["categories"]}
     names = [id2name[i] for i in sorted(id2name)]
     table = {}
@@ -27,11 +25,11 @@ def class_counts_table(data_by_split):
     return names, table
 
 
-def plot_class_counts(names, table, out_path):
+def plot_class_counts(names, table, out_path, splits=SPLITS):
     fig, ax = plt.subplots(figsize=(9, 5))
     width = 0.25
     x = range(len(names))
-    for i, split in enumerate(SPLITS):
+    for i, split in enumerate(splits):
         counts = [table[split][n] for n in names]
         ax.bar([xi + i * width for xi in x], counts, width, label=split)
     ax.set_xticks([xi + width for xi in x])
@@ -59,7 +57,7 @@ def plot_image_sizes(data_by_split, out_path):
     plt.close(fig)
 
 
-def plot_sample_grid(data, split, out_path, n=6, seed=0):
+def plot_sample_grid(data_root: Path, data: dict, split: str, out_path, n=6, seed=0):
     random.seed(seed)
     id2name = {c["id"]: c["name"] for c in data["categories"]}
     anns_by_img = {}
@@ -71,8 +69,8 @@ def plot_sample_grid(data, split, out_path, n=6, seed=0):
     cols = 3
     rows = (len(sample) + cols - 1) // cols
     fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 4 * rows))
-    axes = axes.flatten()
-    img_dir = DATA_ROOT / split
+    axes = axes.flatten() if hasattr(axes, "flatten") else [axes]
+    img_dir = Path(data_root) / split
     for ax, img in zip(axes, sample):
         im = plt.imread(img_dir / img["file_name"])
         ax.imshow(im)
@@ -91,29 +89,32 @@ def plot_sample_grid(data, split, out_path, n=6, seed=0):
     plt.close(fig)
 
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    data_by_split = {split: load_split(split) for split in SPLITS}
+def run_eda(data_root: Path, out_dir: Path, splits: list[str] = SPLITS) -> dict:
+    data_root, out_dir = Path(data_root), Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    data_by_split = {split: load_split(data_root, split) for split in splits}
 
     print("=== image / annotation counts ===")
     for split, data in data_by_split.items():
-        print(f"{split:12s} images={len(data['images']):5d}  annotations={len(data['annotations']):5d}")
+        n_images, n_anns = len(data["images"]), len(data["annotations"])
+        print(f"{split:12s} images={n_images:5d}  annotations={n_anns:5d}")
 
     names, table = class_counts_table(data_by_split)
     print("\n=== per-class counts ===")
-    print(f"{'class':15s}" + "".join(f"{s:>12s}" for s in SPLITS))
+    print(f"{'class':15s}" + "".join(f"{s:>12s}" for s in splits))
     for name in names:
-        print(f"{name:15s}" + "".join(f"{table[s][name]:12d}" for s in SPLITS))
+        print(f"{name:15s}" + "".join(f"{table[s][name]:12d}" for s in splits))
 
-    plot_class_counts(names, table, OUT_DIR / "class_counts.png")
-    plot_image_sizes(data_by_split, OUT_DIR / "image_sizes.png")
-    plot_sample_grid(data_by_split["train2017"], "train2017", OUT_DIR / "sample_grid_train.png")
+    plot_class_counts(names, table, out_dir / "class_counts.png", splits=splits)
+    plot_image_sizes(data_by_split, out_dir / "image_sizes.png")
+    # Filename intentionally matches the pre-refactor scripts/eda.py output exactly
+    # ("sample_grid_train.png", not "sample_grid_train2017.png") - that file is already committed.
+    plot_sample_grid(
+        data_root, data_by_split[splits[0]], splits[0], out_dir / "sample_grid_train.png"
+    )
 
-    with open(OUT_DIR / "class_counts.json", "w") as f:
+    with open(out_dir / "class_counts.json", "w") as f:
         json.dump(table, f, indent=2)
 
-    print(f"\nSaved plots + class_counts.json to {OUT_DIR}/")
-
-
-if __name__ == "__main__":
-    main()
+    print(f"\nSaved plots + class_counts.json to {out_dir}/")
+    return table

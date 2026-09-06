@@ -1,0 +1,37 @@
+name: cardd_yolo11n_albumentations
+description: >
+  Same as 03_tuned plus custom Albumentations transforms (JPEG compression, motion blur,
+  brightness/contrast jitter) simulating messy phone-photo capture conditions the default
+  augmentation pipeline doesn't cover. Staged in the original repo as
+  kaggle_train_yolo11_albumentations.ipynb but never executed; not yet empirically compared
+  against the baseline. Evaluate with caution: CarDD's own images are comparatively clean, so
+  robustness-oriented augmentation may show flat-to-slightly-worse CarDD test metrics even if it
+  helps in actual deployment.
+model:
+  variant: yolo11n
+train:
+  epochs: 100
+  imgsz: 640
+  batch: 16
+  seed: 0
+  deterministic: true
+  patience: 20
+  device: 0
+  cache: ram
+  optimizer: SGD
+  lr0: 0.005
+  freeze: 10
+  weight_decay: 0.001
+  cls: 0.75
+augment:
+  hsv_h: 0.02
+  hsv_v: 0.6
+  degrees: 12
+  perspective: 0.0008
+albumentations:
+  - name: ImageCompression   # phone JPEG compression, default p=0.0
+    params: {quality_range: [40, 90], p: 0.3}
+  - name: MotionBlur         # quick handheld snapshot, off by default
+    params: {blur_limit: 7, p: 0.15}
+  - name: RandomBrightnessContrast  # extra lighting variability, default p=0.0
+    params: {p: 0.2}
