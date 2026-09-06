@@ -28,7 +28,9 @@ jobs:
       # CPU-only torch, same as the Dockerfile - CI runners have no GPU and this is much faster
       # to install than the default CUDA-enabled wheels.
       - run: pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-      - run: pip install -e ".[dev,train]"
+      # serve is needed too: test_service.py exercises the FastAPI app (fastapi/uvicorn/
+      # python-multipart), not just the training pipeline.
+      - run: pip install -e ".[dev,train,serve]"
       - run: pytest -q
 
   docker-smoke:

@@ -37,6 +37,11 @@ where = ["src"]
 [tool.ruff]
 line-length = 100
 target-version = "py39"
+# Notebooks aren't held to library-code style rules: 01_cardd_yolo11n.ipynb and
+# 02_kaggle-yolo11-cardd-imgsz.ipynb are executed evidentiary artifacts kept deliberately
+# untouched (see README), and Kaggle-magic cells (!pip install, %cd) aren't meaningfully
+# lintable the same way as plain .py modules.
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 # Explicit baseline (pycodestyle errors, pyflakes, isort, pyupgrade) rather than relying on
