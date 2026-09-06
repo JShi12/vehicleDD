@@ -10,8 +10,10 @@ __pycache__/
 .claude/
 CLAUDE.md
 
-# Data (downloaded separately, too large for git)
-data/
+# Data (downloaded separately, too large for git) - anchored to repo root: an unanchored
+# "data/" here previously also matched src/cardd/data/, silently excluding that whole
+# subpackage from every commit despite it existing locally and passing every local test.
+/data/
 
 # Ultralytics run artifacts (local smoke tests / scratch)
 runs/
