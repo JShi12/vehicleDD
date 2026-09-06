@@ -12,18 +12,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # Static analysis only (pyproject.toml's `target-version = "py39"` governs which
+          # syntax ruff assumes, independent of the interpreter running it) - one version is
+          # enough. 3.12 matches Kaggle, the actual training environment, rather than an
+          # arbitrary pick.
+          python-version: "3.12"
           cache: pip
       - run: pip install -e ".[dev]"
       - run: ruff check .
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyproject.toml declares `requires-python = ">=3.9,<3.13"` (3.9: local .venv today,
+        # 3.12: what Kaggle actually trains on) - test the full claimed range instead of a
+        # single arbitrary version standing in for a claim about all four.
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
           cache: pip
       # CPU-only torch, same as the Dockerfile - CI runners have no GPU and this is much faster
       # to install than the default CUDA-enabled wheels.
