@@ -48,3 +48,12 @@ extend-exclude = ["notebooks"]
 # whatever ruff's own default rule set happens to be - keeps `ruff check` results stable across
 # ruff versions instead of silently picking up new rule categories on a version bump.
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.isort]
+# `cardd` lives under src/ and `tests` at the repo root - without this, ruff's isort (I001) has to
+# auto-detect which top-level names count as first-party, and that auto-detection was observed to
+# disagree between a local macOS checkout and CI's Linux runner (same ruff version, same pyproject
+# config): "tests.*" imports passed locally but got flagged for wrong grouping in CI. Declaring
+# both explicitly removes the ambiguity instead of just reordering the two files that happened to
+# trip on it - it would resurface on any new test file otherwise.
+known-first-party = ["cardd", "tests"]
