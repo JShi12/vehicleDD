@@ -128,16 +128,19 @@ curl -X POST localhost:8000/predict -F "file=@path/to/image.jpg"
 
 With no `CHAMPION_WEIGHTS_URL` set, the service falls back to a GitHub Release asset (see the
 Dockerfile). **Public deployment is a manual, one-time step, not automated by CI**: build the image,
-push a trained `best.pt` as a GitHub Release asset, and point a host at this repo's `Dockerfile`
-(Render.com's free tier works with no credit card, at the cost of 512MB RAM/0.1 CPU and a
-cold start after 15 minutes idle). No live deployment exists yet as of this writing.
+push a trained `best.pt` as a GitHub Release asset, and point a host at this repo's `Dockerfile`.
 
-Verified locally (Docker via `colima`, not just the equivalent local process): the image builds,
-boots, and correctly detects damage on a real CarDD test image using the actual trained checkpoint
-(`tire flat`, confidence 0.68). `python:3.11-slim` is missing the X11/GL shared libraries
-`opencv-python` needs at import time (pulled in transitively through `ultralytics`) - the
-Dockerfile installs them via `apt-get` (`libgl1`, `libxcb1`, etc.); without that fix the container
-fails at startup with `ImportError: libxcb.so.1: cannot open shared object file`.
+**Live demo**: [cardd-149g.onrender.com](https://cardd-149g.onrender.com/docs) (Render.com free
+tier - see the CPU caveat below before judging response time; allow ~1 min for cold start if the
+service has spun down after 15 min idle).
+
+Verified locally (Docker via `colima`, not just the equivalent local process) and against the live
+deployment: the image builds, boots, and correctly detects damage on real CarDD test images using
+the actual trained checkpoint (locally: `tire flat`, confidence 0.68; on Render: `scratch`,
+confidence 0.70). `python:3.11-slim` is missing the X11/GL shared libraries `opencv-python` needs
+at import time (pulled in transitively through `ultralytics`) - the Dockerfile installs them via
+`apt-get` (`libgl1`, `libxcb1`, etc.); without that fix the container fails at startup with
+`ImportError: libxcb.so.1: cannot open shared object file`.
 
 ## Continuous integration
 
@@ -272,11 +275,15 @@ different things being measured by the same number.
   scheduled retrain trigger or automated champion/challenger promotion gate yet - retraining today
   means manually running `cardd-train`, comparing `metrics.json` by hand, and re-publishing the
   Release asset the service reads from.
-- **512MB RAM on Render's free tier**: measured (via `docker stats`, single request, Docker on
-  Apple Silicon via colima - not Render's own x86 infra, so treat as indicative not conclusive)
-  at ~283MB idle and ~359MB after a `/predict` call, comfortably inside the 512MB ceiling for a
-  single request. Not yet load-tested under concurrent requests, which is where a tight ceiling
-  would actually bite.
+- **512MB RAM on Render's free tier is fine; 0.1 CPU is not.** RAM measured locally (via
+  `docker stats`, Apple Silicon via colima, not Render's own infra) at ~283MB idle / ~359MB after a
+  `/predict` call - comfortably inside 512MB for a single request. CPU is the real problem: the
+  same request that takes ~450ms locally took **~99 seconds** against the live Render deployment
+  (`inference_ms` in the actual response). Render's free tier allocates a heavily-throttled
+  one-tenth of a CPU core, and that's simply not enough compute for a CNN forward pass, even
+  YOLO11n's, in anything close to real time. This is the tier's real limiting factor, not RAM -
+  a paid Render instance (more CPU, not more RAM) would be the fix, not anything in this repo's
+  code. Treat the live demo as a correctness proof, not a latency demo.
 
 ## License
 
