@@ -21,6 +21,11 @@ def main():
     p.add_argument("--release-tag", default=None, help="Required unless --check-only.")
     p.add_argument("--rolling-release-tag", default="champion")
     p.add_argument("--readme", type=Path, default=Path("README.md"))
+    p.add_argument("--model-card", type=Path, default=Path("MODEL_CARD.md"),
+                    help="Only the marker-delimited Quantitative Results block is touched. "
+                         "Must exist with markers present, like --readme - use --no-model-card "
+                         "to skip entirely instead of pointing this at a missing file.")
+    p.add_argument("--no-model-card", action="store_true", help="Skip updating --model-card.")
     p.add_argument("--champion-json", type=Path, default=Path("models/champion.json"))
     p.add_argument("--decision-out", type=Path, default=None)
     p.add_argument("--github-output", type=Path, default=None,
@@ -71,9 +76,13 @@ def main():
         rolling_release_tag=args.rolling_release_tag,
         weights_url=args.challenger_weights_url,
         git_sha=git_sha(),
+        model_card_path=None if args.no_model_card else args.model_card,
     )
     print(f"Applied promotion: {pointer['run_name']} -> {pointer['release_tag']}")
-    print(f"  {args.champion_metrics}, {args.champion_json}, {args.readme} updated.")
+    updated = [str(args.champion_metrics), str(args.champion_json), str(args.readme)]
+    if not args.no_model_card:
+        updated.append(str(args.model_card))
+    print(f"  {', '.join(updated)} updated.")
 
 
 if __name__ == "__main__":

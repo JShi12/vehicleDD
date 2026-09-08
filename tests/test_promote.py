@@ -6,10 +6,14 @@ import pytest
 
 from cardd.metrics_schema import validate_metrics_schema
 from cardd.promote import (
+    MODEL_CARD_END_MARKER,
+    MODEL_CARD_START_MARKER,
+    README_END_MARKER,
+    README_START_MARKER,
     apply_promotion,
     build_champion_pointer,
     decide_promotion,
-    splice_readme_section,
+    splice_marked_section,
 )
 
 
@@ -85,37 +89,52 @@ def test_build_champion_pointer_shape():
     assert "promoted_at" in pointer
 
 
-def test_splice_readme_section_replaces_between_markers():
+def test_splice_marked_section_replaces_between_markers():
     readme = (
         "# Title\n\n## Current champion\n\n"
-        "<!-- promote:champion-results:start -->\nold content\n"
-        "<!-- promote:champion-results:end -->\n\n"
+        f"{README_START_MARKER}\nold content\n{README_END_MARKER}\n\n"
         "## Next section\n"
     )
-    updated = splice_readme_section(readme, "new content")
+    updated = splice_marked_section(readme, "new content", README_START_MARKER, README_END_MARKER)
     assert "old content" not in updated
     assert "new content" in updated
     assert "## Next section" in updated
-    assert "<!-- promote:champion-results:start -->" in updated
-    assert "<!-- promote:champion-results:end -->" in updated
+    assert README_START_MARKER in updated
+    assert README_END_MARKER in updated
 
 
-def test_splice_readme_section_raises_if_markers_missing():
+def test_splice_marked_section_raises_if_markers_missing():
     with pytest.raises(ValueError, match="markers"):
-        splice_readme_section("# Title\n\nno markers here\n", "new content")
+        splice_marked_section(
+            "# Title\n\nno markers here\n", "new content", README_START_MARKER, README_END_MARKER
+        )
 
 
-def test_apply_promotion_writes_all_three_files(tmp_path):
+def test_splice_marked_section_marker_pairs_are_independent():
+    # A document with only the model-card markers must not be touched by a splice targeting the
+    # README markers - confirms the two marker pairs can never collide.
+    text = f"{MODEL_CARD_START_MARKER}\nsome content\n{MODEL_CARD_END_MARKER}\n"
+    with pytest.raises(ValueError, match="markers"):
+        splice_marked_section(text, "new content", README_START_MARKER, README_END_MARKER)
+
+
+def test_apply_promotion_writes_all_files(tmp_path):
     challenger_metrics_path = tmp_path / "challenger_metrics.json"
     champion_json_path = tmp_path / "models" / "champion.json"
     champion_metrics_path = tmp_path / "models" / "champion_metrics.json"
     readme_path = tmp_path / "README.md"
+    model_card_path = tmp_path / "MODEL_CARD.md"
 
     challenger = make_metrics(recall=0.7, run_name="03_tuned")
     challenger_metrics_path.write_text(json.dumps(challenger))
     readme_path.write_text(
         "# Title\n\n## Current champion\n\n"
-        "<!-- promote:champion-results:start -->\nold\n<!-- promote:champion-results:end -->\n"
+        f"{README_START_MARKER}\nold\n{README_END_MARKER}\n"
+    )
+    model_card_path.write_text(
+        "# Model Card\n\n## Quantitative Results\n\n"
+        f"{MODEL_CARD_START_MARKER}\nold\n{MODEL_CARD_END_MARKER}\n\n"
+        "**Analysis**: written for a different run, unrelated to automation.\n"
     )
 
     pointer = apply_promotion(
@@ -127,6 +146,7 @@ def test_apply_promotion_writes_all_three_files(tmp_path):
         rolling_release_tag="champion",
         weights_url="https://github.com/JShi12/vehicleDD/releases/download/champion/best.pt",
         git_sha="abc1234",
+        model_card_path=model_card_path,
     )
 
     assert champion_metrics_path.exists()
@@ -140,6 +160,31 @@ def test_apply_promotion_writes_all_three_files(tmp_path):
     readme_text = readme_path.read_text()
     assert "old" not in readme_text
     assert "03_tuned" in readme_text
+
+    model_card_text = model_card_path.read_text()
+    assert "03_tuned" in model_card_text
+    # the marker-delimited block updated, but hand-written prose outside it must survive untouched
+    assert "written for a different run, unrelated to automation" in model_card_text
+
+
+def test_apply_promotion_skips_model_card_when_not_given(tmp_path):
+    challenger_metrics_path = tmp_path / "challenger_metrics.json"
+    readme_path = tmp_path / "README.md"
+    challenger_metrics_path.write_text(json.dumps(make_metrics(recall=0.7, run_name="03_tuned")))
+    readme_path.write_text(f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
+
+    apply_promotion(
+        challenger_metrics_path=challenger_metrics_path,
+        champion_json_path=tmp_path / "models" / "champion.json",
+        champion_metrics_path=tmp_path / "models" / "champion_metrics.json",
+        readme_path=readme_path,
+        release_tag="champion-03_tuned-20260101",
+        rolling_release_tag="champion",
+        weights_url="https://example.invalid/best.pt",
+        # model_card_path omitted entirely - must not raise or create anything
+    )
+
+    assert not (tmp_path / "MODEL_CARD.md").exists()
 
 
 def _run_cli(*args):
@@ -171,15 +216,16 @@ def test_cli_check_only_does_not_write_files(tmp_path):
 
 
 def test_cli_apply_writes_files(tmp_path):
+    # --no-model-card here deliberately: this test doesn't set up a MODEL_CARD.md fixture, and
+    # without an explicit override the CLI's default (--model-card MODEL_CARD.md, relative) would
+    # otherwise resolve against the real repo root pytest runs from - see
+    # test_cli_apply_writes_model_card below for that path specifically, with its own tmp_path file.
     champion_metrics = tmp_path / "champion_metrics.json"
     challenger_metrics = tmp_path / "challenger_metrics.json"
     champion_metrics.write_text(json.dumps(make_metrics(recall=0.60)))
     challenger_metrics.write_text(json.dumps(make_metrics(recall=0.70, run_name="challenger")))
     readme = tmp_path / "README.md"
-    readme.write_text(
-        "# Title\n\n<!-- promote:champion-results:start -->\nold\n"
-        "<!-- promote:champion-results:end -->\n"
-    )
+    readme.write_text(f"# Title\n\n{README_START_MARKER}\nold\n{README_END_MARKER}\n")
     champion_json = tmp_path / "models" / "champion.json"
 
     result = _run_cli(
@@ -189,9 +235,36 @@ def test_cli_apply_writes_files(tmp_path):
         "--release-tag", "champion-challenger-20260101",
         "--readme", str(readme),
         "--champion-json", str(champion_json),
+        "--no-model-card",
     )
 
     assert result.returncode == 0, result.stderr
     assert champion_json.exists()
     assert json.loads(champion_metrics.read_text())["run_name"] == "challenger"
     assert "challenger" in readme.read_text()
+
+
+def test_cli_apply_writes_model_card(tmp_path):
+    champion_metrics = tmp_path / "champion_metrics.json"
+    challenger_metrics = tmp_path / "challenger_metrics.json"
+    champion_metrics.write_text(json.dumps(make_metrics(recall=0.60)))
+    challenger_metrics.write_text(json.dumps(make_metrics(recall=0.70, run_name="challenger")))
+    readme = tmp_path / "README.md"
+    readme.write_text(f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
+    model_card = tmp_path / "MODEL_CARD.md"
+    model_card.write_text(f"{MODEL_CARD_START_MARKER}\nold\n{MODEL_CARD_END_MARKER}\n")
+    champion_json = tmp_path / "models" / "champion.json"
+
+    result = _run_cli(
+        "--champion-metrics", str(champion_metrics),
+        "--challenger-metrics", str(challenger_metrics),
+        "--challenger-weights-url", "https://example.invalid/best.pt",
+        "--release-tag", "champion-challenger-20260101",
+        "--readme", str(readme),
+        "--champion-json", str(champion_json),
+        "--model-card", str(model_card),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "challenger" in model_card.read_text()
+    assert "old" not in model_card.read_text()

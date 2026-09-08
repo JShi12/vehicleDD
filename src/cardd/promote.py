@@ -11,8 +11,13 @@ from pathlib import Path
 
 from cardd.report import metrics_to_markdown
 
-DEFAULT_START_MARKER = "<!-- promote:champion-results:start -->"
-DEFAULT_END_MARKER = "<!-- promote:champion-results:end -->"
+# Two separate marker pairs, one per document splice_marked_section() targets. Kept distinct
+# (rather than one generic pair reused everywhere) so a marker search in one file can never
+# accidentally match content meant for the other.
+README_START_MARKER = "<!-- promote:champion-results:start -->"
+README_END_MARKER = "<!-- promote:champion-results:end -->"
+MODEL_CARD_START_MARKER = "<!-- promote:model-card-results:start -->"
+MODEL_CARD_END_MARKER = "<!-- promote:model-card-results:end -->"
 
 
 def decide_promotion(
@@ -88,30 +93,29 @@ def build_champion_pointer(
     }
 
 
-def splice_readme_section(
-    readme_text: str,
+def splice_marked_section(
+    text: str,
     new_body: str,
-    start_marker: str = DEFAULT_START_MARKER,
-    end_marker: str = DEFAULT_END_MARKER,
+    start_marker: str,
+    end_marker: str,
 ) -> str:
     """Replace the content between start_marker and end_marker (both kept, content between them
-    replaced) with new_body.
+    replaced) with new_body. Generic - used for both README.md and MODEL_CARD.md, with a
+    different marker pair for each (see README_*/MODEL_CARD_* constants above).
 
-    Raises ValueError if either marker is missing - a future README restructure that accidentally
-    drops or renames these markers should break loudly here, not silently leave the champion
-    section stale forever.
+    Raises ValueError if either marker is missing - a future doc restructure that accidentally
+    drops or renames these markers should break loudly here, not silently leave that section
+    stale forever.
     """
-    start_idx = readme_text.find(start_marker)
-    end_idx = readme_text.find(end_marker)
+    start_idx = text.find(start_marker)
+    end_idx = text.find(end_marker)
     if start_idx == -1 or end_idx == -1:
-        raise ValueError(
-            f"README is missing the champion-results markers ({start_marker!r} / {end_marker!r})"
-        )
+        raise ValueError(f"Document is missing the markers ({start_marker!r} / {end_marker!r})")
     if end_idx < start_idx:
         raise ValueError("End marker appears before start marker")
 
     content_start = start_idx + len(start_marker)
-    return readme_text[:content_start] + "\n" + new_body.strip() + "\n" + readme_text[end_idx:]
+    return text[:content_start] + "\n" + new_body.strip() + "\n" + text[end_idx:]
 
 
 def apply_promotion(
@@ -123,12 +127,18 @@ def apply_promotion(
     rolling_release_tag: str,
     weights_url: str,
     git_sha: str | None = None,
+    model_card_path: Path | None = None,
 ) -> dict:
     """The one function in this module that touches disk.
 
     Copies the challenger's metrics.json to become the new champion_metrics.json, writes
-    champion.json via build_champion_pointer(), and rewrites README's marked section using
-    report.py's metrics_to_markdown() + splice_readme_section(). Returns the pointer dict written.
+    champion.json via build_champion_pointer(), and rewrites README's (and, if given,
+    MODEL_CARD.md's) marked section using report.py's metrics_to_markdown() +
+    splice_marked_section(). Both docs get the identical rendering - only the marker pair differs
+    - since it's the same underlying champion_metrics.json either way. `model_card_path` is
+    optional (unlike readme_path) so callers/tests that don't care about the model card aren't
+    forced to set one up; when given, it's held to the same fail-loudly-on-missing-markers
+    standard as the README. Returns the pointer dict written.
     """
     with open(challenger_metrics_path) as f:
         challenger_metrics = json.load(f)
@@ -151,9 +161,21 @@ def apply_promotion(
     with open(champion_json_path, "w") as f:
         json.dump(pointer, f, indent=2)
 
+    new_body = metrics_to_markdown(champion_metrics_path)
+
     readme_path = Path(readme_path)
     readme_text = readme_path.read_text()
-    new_body = metrics_to_markdown(champion_metrics_path)
-    readme_path.write_text(splice_readme_section(readme_text, new_body))
+    readme_path.write_text(
+        splice_marked_section(readme_text, new_body, README_START_MARKER, README_END_MARKER)
+    )
+
+    if model_card_path is not None:
+        model_card_path = Path(model_card_path)
+        model_card_text = model_card_path.read_text()
+        model_card_path.write_text(
+            splice_marked_section(
+                model_card_text, new_body, MODEL_CARD_START_MARKER, MODEL_CARD_END_MARKER
+            )
+        )
 
     return pointer
