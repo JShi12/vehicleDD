@@ -56,6 +56,21 @@ jobs:
       - name: Post decision summary
         run: python3 -m json.tool /tmp/decision.json >> "$GITHUB_STEP_SUMMARY"
 
+      # Built once, reused as both the versioned release's notes and the PR body below, so an
+      # audit-trail release is never left with an empty description the way earlier ones were -
+      # anyone auditing promotion history later can read *why* right there, not just download it.
+      - name: Build decision summary
+        if: steps.decide.outputs.promote == 'true'
+        run: |
+          {
+            echo "Automated promotion by \`promote.yml\`, from challenger release"
+            echo "\`${{ inputs.challenger_tag }}\`. Decision:"
+            echo ""
+            echo '```json'
+            cat /tmp/decision.json
+            echo '```'
+          } > /tmp/decision_summary.md
+
       # Deliberately only the *permanent versioned* release here, not the rolling "champion" tag -
       # the rolling tag is what production actually reads from (Dockerfile/weights.py), so it must
       # not change until a human has reviewed and merged the PR below. activate-champion.yml is
@@ -74,7 +89,7 @@ jobs:
           # never touches that flag, so it stays put across future promotions without needing to
           # be re-applied here).
           gh release create "$VERSIONED_TAG" /tmp/challenger/best.pt /tmp/challenger/metrics.json \
-            --title "$VERSIONED_TAG" --latest=false
+            --title "$VERSIONED_TAG" --latest=false --notes-file /tmp/decision_summary.md
           echo "versioned_tag=$VERSIONED_TAG" >> "$GITHUB_OUTPUT"
           echo "weights_url=https://github.com/${{ github.repository }}/releases/download/$VERSIONED_TAG/best.pt" >> "$GITHUB_OUTPUT"
 
@@ -92,12 +107,9 @@ jobs:
         if: steps.decide.outputs.promote == 'true'
         run: |
           {
-            echo "Automated promotion by \`promote.yml\`, from challenger release"
-            echo "\`${{ inputs.challenger_tag }}\`. Decision:"
+            cat /tmp/decision_summary.md
             echo ""
-            echo '```json'
-            cat /tmp/decision.json
-            echo '```'
+            echo "Full details on the versioned release: ${{ steps.publish.outputs.versioned_tag }}"
             echo ""
             echo "Review the diff below (README's Current champion table + \`models/champion*.json\`),"
             echo "then merge. Merging triggers activate-champion.yml, which updates the rolling"
