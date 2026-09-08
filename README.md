@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml/badge.svg)](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml)
 
+**🔗 Live demo: [cardd-149g.onrender.com/docs](https://cardd-149g.onrender.com/docs)** - try
+`/predict` with your own image. Free-tier hosting, so allow ~1 min for cold start if it's been
+idle, and see [Known limitations](#known-limitations) before judging response time.
+
 A narrow-component implementation of the visual-damage-detection stage of a vehicle
 reconditioning-effort assessment system (see problem framing below): a YOLO11 damage detector
 trained and evaluated against the public [CarDD](https://cardd-ustc.github.io/) dataset, packaged
@@ -146,9 +150,9 @@ With no `CHAMPION_WEIGHTS_URL` set, the service falls back to a GitHub Release a
 Dockerfile). **Public deployment is a manual, one-time step, not automated by CI**: build the image,
 push a trained `best.pt` as a GitHub Release asset, and point a host at this repo's `Dockerfile`.
 
-**Live demo**: [cardd-149g.onrender.com](https://cardd-149g.onrender.com/docs) (Render.com free
-tier - see the CPU caveat below before judging response time; allow ~1 min for cold start if the
-service has spun down after 15 min idle).
+**Live demo**: [cardd-149g.onrender.com/docs](https://cardd-149g.onrender.com/docs) (also linked
+at the top of this README) - Render.com free tier, so see the CPU caveat below before judging
+response time; allow ~1 min for cold start if the service has spun down after 15 min idle.
 
 Verified locally (Docker via `colima`, not just the equivalent local process) and against the live
 deployment: the image builds, boots, and correctly detects damage on real CarDD test images using
