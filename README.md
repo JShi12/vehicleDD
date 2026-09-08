@@ -89,10 +89,15 @@ cardd-verify                      # -> outputs/sanity/
 ```
 
 Actual training happened on Kaggle (free T4 GPU) rather than locally. `notebooks/01_cardd_yolo11n.ipynb`
-is the single source of truth for the reported run: it re-runs the same COCO→YOLO conversion used
-locally against the raw dataset, not a pre-converted copy. (It predates the `cardd` package
-refactor and inlines that logic directly - kept as-is since it's the executed evidentiary record;
-new runs use `kaggle_run_template.ipynb`, which calls the installed package instead.)
+and `notebooks/02_kaggle-yolo11-cardd-imgsz.ipynb` are each the source of truth for their own run
+(see their respective `## Results —` sections below) - both re-run the same COCO→YOLO conversion
+used locally against the raw dataset, not a pre-converted copy, and both predate the `cardd`
+package refactor, inlining that conversion logic directly rather than importing it - kept as-is
+since they're the executed evidentiary record. Neither notebook is "the champion," though: which
+run is currently promoted is tracked separately, in `models/champion.json` (see
+[Current champion](#current-champion) below) - that pointer can move to a different run entirely
+after a future promotion, independent of either notebook. New runs use `kaggle_run_template.ipynb`,
+which calls the installed package instead of inlining the conversion logic.
 
 ## Training pipeline
 
