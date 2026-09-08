@@ -1,0 +1,109 @@
+name: Promote challenger
+
+# Compares a Kaggle-trained challenger against the current champion on held-out test recall, and -
+# if it wins - publishes it and opens a PR. Never trains anything itself: GitHub Actions has no
+# GPU, so training stays manual on Kaggle (see notebooks/kaggle_run_template.ipynb). The human
+# publishes the challenger's best.pt + metrics.json as a GitHub Release beforehand (see README's
+# "Continuous integration" section for the full walkthrough) and this workflow takes that release's
+# tag as input.
+
+on:
+  workflow_dispatch:
+    inputs:
+      challenger_tag:
+        description: >
+          Tag of the pre-published GitHub Release containing the challenger's best.pt and
+          metrics.json (e.g. challenger-03_tuned-20260908)
+        required: true
+        type: string
+      recall_tolerance:
+        description: "Max allowed recall regression vs champion (default 0.0 = no regression allowed)"
+        required: false
+        default: "0.0"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # cardd-promote only reads/writes JSON and markdown - no torch/ultralytics needed here.
+      - run: pip install -e .
+
+      - name: Download challenger release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.challenger_tag }}" -D /tmp/challenger --clobber
+
+      - name: Decide
+        id: decide
+        run: |
+          cardd-promote --check-only \
+            --champion-metrics models/champion_metrics.json \
+            --challenger-metrics /tmp/challenger/metrics.json \
+            --recall-tolerance "${{ inputs.recall_tolerance }}" \
+            --decision-out /tmp/decision.json
+
+      - name: Post decision summary
+        run: python3 -m json.tool /tmp/decision.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish versioned + rolling releases
+        if: steps.decide.outputs.promote == 'true'
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSIONED_TAG="champion-${{ inputs.challenger_tag }}"
+          gh release create "$VERSIONED_TAG" /tmp/challenger/best.pt /tmp/challenger/metrics.json \
+            --title "$VERSIONED_TAG"
+          gh release upload champion /tmp/challenger/best.pt /tmp/challenger/metrics.json --clobber \
+            || gh release create champion /tmp/challenger/best.pt /tmp/challenger/metrics.json \
+                 --title "Champion (rolling)" \
+                 --notes "Auto-updated by promote.yml on each promotion - do not edit by hand."
+          echo "versioned_tag=$VERSIONED_TAG" >> "$GITHUB_OUTPUT"
+          echo "weights_url=https://github.com/${{ github.repository }}/releases/download/$VERSIONED_TAG/best.pt" >> "$GITHUB_OUTPUT"
+
+      - name: Apply promotion (champion.json, champion_metrics.json, README)
+        if: steps.decide.outputs.promote == 'true'
+        run: |
+          cardd-promote \
+            --champion-metrics models/champion_metrics.json \
+            --challenger-metrics /tmp/challenger/metrics.json \
+            --challenger-weights-url "${{ steps.publish.outputs.weights_url }}" \
+            --release-tag "${{ steps.publish.outputs.versioned_tag }}" \
+            --readme README.md
+
+      - name: Build PR body
+        if: steps.decide.outputs.promote == 'true'
+        run: |
+          {
+            echo "Automated promotion by \`promote.yml\`, from challenger release"
+            echo "\`${{ inputs.challenger_tag }}\`. Decision:"
+            echo ""
+            echo '```json'
+            cat /tmp/decision.json
+            echo '```'
+            echo ""
+            echo "Review the diff below (README's Current champion table + \`models/champion*.json\`),"
+            echo "then merge - this does not redeploy Render by itself; that's still a manual step"
+            echo "afterward (see the README's Inference service section)."
+          } > /tmp/pr_body.md
+
+      - name: Open PR
+        if: steps.decide.outputs.promote == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: promote/${{ inputs.challenger_tag }}
+          title: "Promote ${{ inputs.challenger_tag }} to champion"
+          commit-message: "Promote ${{ inputs.challenger_tag }} to champion"
+          labels: promotion
+          body-path: /tmp/pr_body.md

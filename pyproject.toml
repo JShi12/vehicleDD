@@ -27,6 +27,7 @@ cardd-convert = "cardd.cli.convert:main"
 cardd-verify = "cardd.cli.verify:main"
 cardd-train = "cardd.cli.train:main"
 cardd-evaluate = "cardd.cli.evaluate:main"
+cardd-promote = "cardd.cli.promote:main"
 
 [project.urls]
 Source = "https://github.com/JShi12/vehicleDD"

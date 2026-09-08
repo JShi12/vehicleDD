@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "run_name": "01_cardd_yolo11n",
+  "config_path": "configs/cardd_yolo.yaml",
+  "git_sha": "4355f18",
+  "mlflow_run_id": null,
+  "timestamp": "2026-09-08T10:28:36.267392+00:00",
+  "train_seconds": null,
+  "weights_path": "outputs/kaggle_run/01_cardd_yolo11n/cardd_yolo11n/weights/best.pt",
+  "class_names": [
+    "dent",
+    "scratch",
+    "crack",
+    "glass shatter",
+    "lamp broken",
+    "tire flat"
+  ],
+  "splits": {
+    "test": {
+      "images": 374,
+      "instances": 785,
+      "aggregate": {
+        "precision": 0.7806423425999194,
+        "recall": 0.6847321663841024,
+        "map50": 0.726719748269724,
+        "map50_95": 0.5666474223141614
+      },
+      "per_class": [
+        {
+          "class_id": 0,
+          "class_name": "dent",
+          "precision": 0.7005910318199442,
+          "recall": 0.5423728813559322,
+          "f1": 0.611412081320083,
+          "ap50": 0.6244740045660462,
+          "ap50_95": 0.3475101585369473
+        },
+        {
+          "class_id": 1,
+          "class_name": "scratch",
+          "precision": 0.652577816560322,
+          "recall": 0.5537459283387622,
+          "f1": 0.5991133149330622,
+          "ap50": 0.5768060464504319,
+          "ap50_95": 0.30129403874596766
+        },
+        {
+          "class_id": 2,
+          "class_name": "crack",
+          "precision": 0.5400912493343278,
+          "recall": 0.4,
+          "f1": 0.4596075112638376,
+          "ap50": 0.39486436019170434,
+          "ap50_95": 0.20036548747166605
+        },
+        {
+          "class_id": 3,
+          "class_name": "glass shatter",
+          "precision": 0.9165777333683557,
+          "recall": 0.9859154929577465,
+          "f1": 0.9499830804370607,
+          "ap50": 0.9916061872909699,
+          "ap50_95": 0.933778215480172
+        },
+        {
+          "class_id": 4,
+          "class_name": "lamp broken",
+          "precision": 0.948033368726578,
+          "recall": 0.782608695652174,
+          "f1": 0.8574149136958339,
+          "ap50": 0.8659139669500547,
+          "ap50_95": 0.7434396204703493
+        },
+        {
+          "class_id": 5,
+          "class_name": "tire flat",
+          "precision": 0.9259828557899894,
+          "recall": 0.84375,
+          "f1": 0.8829559015267766,
+          "ap50": 0.9066539241691371,
+          "ap50_95": 0.8734970131798662
+        }
+      ]
+    }
+  }
+}

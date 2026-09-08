@@ -20,7 +20,9 @@ COPY src/ ./src/
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision \
  && pip install --no-cache-dir ".[serve]"
 
-ENV CHAMPION_WEIGHTS_URL="https://github.com/JShi12/vehicleDD/releases/download/v0.1.0/best.pt" \
+# Points at the rolling "champion" release tag (its assets get replaced on each promotion, see
+# promote.yml), not a fixed version - this default should never need editing again after this.
+ENV CHAMPION_WEIGHTS_URL="https://github.com/JShi12/vehicleDD/releases/download/champion/best.pt" \
     PORT=8000
 
 USER appuser

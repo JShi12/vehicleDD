@@ -13,7 +13,9 @@ from pathlib import Path
 
 import requests
 
-DEFAULT_CHAMPION_URL = "https://github.com/JShi12/vehicleDD/releases/download/v0.1.0/best.pt"
+# The rolling "champion" release tag - its assets get replaced (not re-tagged) on each promotion
+# (see .github/workflows/promote.yml), so this default never needs editing after this one change.
+DEFAULT_CHAMPION_URL = "https://github.com/JShi12/vehicleDD/releases/download/champion/best.pt"
 CACHE_PATH = Path(os.environ.get("CARDD_WEIGHTS_CACHE", "/tmp/cardd_champion.pt"))
 
 
