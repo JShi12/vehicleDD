@@ -151,24 +151,24 @@ where its release assets live; `models/champion_metrics.json` is the exact sourc
 rendered from.
 
 <!-- promote:champion-results:start -->
-## Results — `01_cardd_yolo11n`
+## Results — `02_cardd_yolo11n_imgsz`
 
 Config: `configs/cardd_yolo.yaml`  
 
 | split | images | instances | precision | recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|---|---|
-| **test** | 374 | 785 | 0.781 | 0.685 | 0.727 | 0.567 |
+| **test** | 374 | 785 | 0.746 | 0.708 | 0.742 | 0.559 |
 
 **Per-class (test set):**
 
 | class | precision | recall | F1 | AP50 | AP50-95 |
 |---|---|---|---|---|---|
-| dent | 0.701 | 0.542 | 0.611 | 0.624 | 0.348 |
-| scratch | 0.653 | 0.554 | 0.599 | 0.577 | 0.301 |
-| crack | 0.540 | 0.400 | 0.460 | 0.395 | 0.200 |
-| glass shatter | 0.917 | 0.986 | 0.950 | 0.992 | 0.934 |
-| lamp broken | 0.948 | 0.783 | 0.857 | 0.866 | 0.743 |
-| tire flat | 0.926 | 0.844 | 0.883 | 0.907 | 0.873 |
+| dent | 0.626 | 0.602 | 0.614 | 0.612 | 0.341 |
+| scratch | 0.603 | 0.580 | 0.591 | 0.566 | 0.297 |
+| crack | 0.527 | 0.493 | 0.509 | 0.487 | 0.264 |
+| glass shatter | 0.920 | 0.958 | 0.938 | 0.980 | 0.859 |
+| lamp broken | 0.902 | 0.797 | 0.846 | 0.896 | 0.728 |
+| tire flat | 0.898 | 0.821 | 0.858 | 0.913 | 0.865 |
 <!-- promote:champion-results:end -->
 
 ## Continuous integration
