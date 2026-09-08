@@ -1,0 +1,50 @@
+name: Activate promoted champion
+
+# This is the workflow that actually updates the rolling "champion" release tag - the one
+# production (Dockerfile/weights.py's CHAMPION_WEIGHTS_URL) reads from. It deliberately only
+# triggers on a merge to main that touches models/champion.json, i.e. only after a promotion PR
+# from promote.yml has been reviewed and merged by a human. promote.yml itself never touches the
+# rolling tag - it only publishes a permanent versioned release and opens the PR. Splitting these
+# two steps across a review gate is the whole point: nothing production reads from should change
+# before a human has approved it.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - models/champion.json
+
+permissions:
+  contents: write
+
+jobs:
+  activate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the just-merged champion pointer
+        id: pointer
+        run: |
+          TAG=$(python3 -c "import json; print(json.load(open('models/champion.json'))['release_tag'])")
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download the approved release's assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ steps.pointer.outputs.release_tag }}" -D /tmp/approved --clobber
+
+      - name: Update the rolling champion release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload champion /tmp/approved/best.pt /tmp/approved/metrics.json --clobber \
+            || gh release create champion /tmp/approved/best.pt /tmp/approved/metrics.json \
+                 --title "Champion (rolling)" \
+                 --notes "Auto-updated by activate-champion.yml on each merged promotion - do not edit by hand."
+
+      - name: Summary
+        run: |
+          echo "Rolling \`champion\` release now points at \`${{ steps.pointer.outputs.release_tag }}\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This does **not** redeploy Render by itself - that's still a manual step (dashboard -> Manual Deploy)." >> "$GITHUB_STEP_SUMMARY"

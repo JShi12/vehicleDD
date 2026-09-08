@@ -181,16 +181,26 @@ and trains a random-init model on it for one epoch, purely to prove the pipeline
 correct end-to-end. It says nothing about detection accuracy - that's what the Results section
 below, run against the real dataset on Kaggle, is for.
 
-**Promotion** (`.github/workflows/promote.yml`, manually triggered): given a Kaggle-trained
-challenger's Release (tag containing its `best.pt` + `metrics.json`), compares its held-out test
-recall against the current champion (`models/champion_metrics.json`) - this project's own stated
-priority is recall over aggregate mAP, since a missed detection is worse than a false positive for
-the reconditioning-assessment use case this feeds into (see Results Analysis below). If the
-challenger doesn't regress on recall, the workflow publishes it as the new `champion` release,
-updates `models/champion.json`/`models/champion_metrics.json`, regenerates the
-[Current champion](#current-champion) table above via `cardd-promote` (which reuses `report.py`'s
-`metrics_to_markdown()`), and opens a PR - reviewed and merged by a human, never auto-committed to
-`main`. Merging the PR doesn't redeploy anything by itself; that's still a manual step (see
+**Promotion** is deliberately split across a review gate, in two workflows, so nothing production
+reads from changes before a human approves it:
+
+1. **`.github/workflows/promote.yml`** (manually triggered): given a Kaggle-trained challenger's
+   Release (tag containing its `best.pt` + `metrics.json`), compares its held-out test recall
+   against the current champion (`models/champion_metrics.json`) - this project's own stated
+   priority is recall over aggregate mAP, since a missed detection is worse than a false positive
+   for the reconditioning-assessment use case this feeds into (see Results Analysis below). If the
+   challenger doesn't regress on recall, it publishes a **permanent, versioned** release (safe -
+   nothing reads from this automatically) and opens a PR updating `models/champion.json`/
+   `models/champion_metrics.json` and regenerating the [Current champion](#current-champion) table
+   via `cardd-promote` (reusing `report.py`'s `metrics_to_markdown()`) - reviewed and merged by a
+   human, never auto-committed to `main`.
+2. **`.github/workflows/activate-champion.yml`** (triggered only by a merge to `main` that touches
+   `models/champion.json` - i.e. only after step 1's PR is approved): reads which versioned release
+   was just approved and updates the **rolling** `champion` release tag - the one
+   `CHAMPION_WEIGHTS_URL`/`DEFAULT_CHAMPION_URL` actually point at. This is the step that makes a
+   promotion "real"; nothing before it touches what production would serve.
+
+Even after that, Render doesn't redeploy itself; going live is still a manual step (see
 [Inference service](#inference-service) above) since no Render API access exists to automate it.
 
 ## Problem setup

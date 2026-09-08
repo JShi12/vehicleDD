@@ -56,7 +56,11 @@ jobs:
       - name: Post decision summary
         run: python3 -m json.tool /tmp/decision.json >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish versioned + rolling releases
+      # Deliberately only the *permanent versioned* release here, not the rolling "champion" tag -
+      # the rolling tag is what production actually reads from (Dockerfile/weights.py), so it must
+      # not change until a human has reviewed and merged the PR below. activate-champion.yml is
+      # the workflow that updates the rolling tag, triggered only by that merge landing on main.
+      - name: Publish versioned release
         if: steps.decide.outputs.promote == 'true'
         id: publish
         env:
@@ -65,10 +69,6 @@ jobs:
           VERSIONED_TAG="champion-${{ inputs.challenger_tag }}"
           gh release create "$VERSIONED_TAG" /tmp/challenger/best.pt /tmp/challenger/metrics.json \
             --title "$VERSIONED_TAG"
-          gh release upload champion /tmp/challenger/best.pt /tmp/challenger/metrics.json --clobber \
-            || gh release create champion /tmp/challenger/best.pt /tmp/challenger/metrics.json \
-                 --title "Champion (rolling)" \
-                 --notes "Auto-updated by promote.yml on each promotion - do not edit by hand."
           echo "versioned_tag=$VERSIONED_TAG" >> "$GITHUB_OUTPUT"
           echo "weights_url=https://github.com/${{ github.repository }}/releases/download/$VERSIONED_TAG/best.pt" >> "$GITHUB_OUTPUT"
 
@@ -94,8 +94,10 @@ jobs:
             echo '```'
             echo ""
             echo "Review the diff below (README's Current champion table + \`models/champion*.json\`),"
-            echo "then merge - this does not redeploy Render by itself; that's still a manual step"
-            echo "afterward (see the README's Inference service section)."
+            echo "then merge. Merging triggers activate-champion.yml, which updates the rolling"
+            echo "\`champion\` release tag that production actually reads from - that's the point"
+            echo "where this becomes real, not before. Render still won't redeploy by itself after"
+            echo "that; see the README's Inference service section for the manual redeploy step."
           } > /tmp/pr_body.md
 
       - name: Open PR
