@@ -67,8 +67,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSIONED_TAG="champion-${{ inputs.challenger_tag }}"
+          # --latest=false: this is a permanent audit-trail entry, not something a visitor
+          # clicking "Releases" should land on by default - the rolling `champion` release is
+          # marked --latest instead (a one-time manual `gh release edit champion --latest`;
+          # `gh release upload --clobber` in activate-champion.yml only replaces its assets and
+          # never touches that flag, so it stays put across future promotions without needing to
+          # be re-applied here).
           gh release create "$VERSIONED_TAG" /tmp/challenger/best.pt /tmp/challenger/metrics.json \
-            --title "$VERSIONED_TAG"
+            --title "$VERSIONED_TAG" --latest=false
           echo "versioned_tag=$VERSIONED_TAG" >> "$GITHUB_OUTPUT"
           echo "weights_url=https://github.com/${{ github.repository }}/releases/download/$VERSIONED_TAG/best.pt" >> "$GITHUB_OUTPUT"
 
