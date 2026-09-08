@@ -11,6 +11,15 @@ reconditioning-effort assessment system (see problem framing below): a YOLO11 da
 trained and evaluated against the public [CarDD](https://cardd-ustc.github.io/) dataset, packaged
 as a reproducible training pipeline plus a deployable inference service.
 
+**What's here:**
+
+- ✅ Trained detector with real, reproducible metrics — [current results](#current-champion)
+- ✅ Experiment tracking — [MLflow](#training-pipeline)
+- ✅ Inference service, live — [Dockerized FastAPI](#inference-service)
+- ✅ CI — [lint, a Python 3.9-3.12 pytest matrix, Docker build-and-boot smoke test](#continuous-integration)
+- ✅ Automated, PR-gated model promotion — [not just a training script](#continuous-integration)
+- ✅ [Model card](MODEL_CARD.md) — intended use, data, and risks, not just accuracy numbers
+
 ![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_cardd_yolo11n_imgsz/cardd_yolo11n_qualitative/image5.jpg)
 
 ## Scope
