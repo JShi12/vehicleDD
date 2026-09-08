@@ -1,0 +1,125 @@
+# Model Card: CarDD Vehicle Damage Detector
+
+Following the format from [Mitchell et al., "Model Cards for Model Reporting" (2019)](https://arxiv.org/abs/1810.03993).
+This document is about the *model's* behavior, data, and limits - for how to run the code, see
+[README.md](README.md); this is what to read before trusting or building on the model itself.
+
+**This reflects the current champion** (`models/champion.json` / `models/champion_metrics.json`),
+which changes whenever a promotion is merged (see README's Continuous integration section) -
+last updated for run `02_cardd_yolo11n_imgsz`, promoted 2026-09-08. Keeping this file's numbers in
+sync with the champion is currently a manual step, same as this document's existence; unlike the
+README's "Current champion" section, `cardd-promote` does not regenerate this file automatically.
+
+## Model Details
+
+- **Architecture**: YOLO11n (nano), fine-tuned from Ultralytics' COCO-pretrained checkpoint.
+- **Task**: object detection (bounding boxes + class), not segmentation - see Problem Setup
+  rationale in the README.
+- **Classes** (6): dent, scratch, crack, glass shatter, lamp broken, tire flat.
+- **Training config**: `configs/experiments/02_imgsz1024.yaml` - Ultralytics defaults except
+  `imgsz=1024` (vs. the `01_baseline.yaml` config's `640`); 100 epochs, no early stop triggered.
+- **License**: code is [AGPL-3.0](LICENSE) (matching `ultralytics`, a dependency); the model
+  weights themselves inherit that license by extension. The CarDD training data has its own,
+  separate license that does **not** transfer to this repository - see README's Dataset section.
+- **Built by**: Jing Shi ([repo](https://github.com/JShi12/vehicleDD)).
+- **Where to get it**: served live via the [inference service](README.md#inference-service), or
+  downloaded directly from the [`champion` release](https://github.com/JShi12/vehicleDD/releases/tag/champion)
+  (a rolling tag - always the current champion, not a fixed version).
+
+## Intended Use
+
+- **Primary intended use**: the visual-damage-detection *stage* of a larger, unbuilt vehicle
+  reconditioning-effort assessment system - producing bounding-box evidence of visible damage
+  (dents, scratches, cracks, broken glass/lamps, flat tires) from a single image, for a later
+  stage to reason about repair effort.
+- **Primary intended users**: a downstream system or engineer integrating detection output into
+  a larger pipeline - not intended as a consumer-facing damage assessment tool on its own.
+- **Explicitly out of scope**: this model does **not** estimate reconditioning cost/effort, does
+  **not** make a recondition/auction/write-off recommendation, and has no confidence/abstention
+  mechanism for flagging uncertain cases - all of that is unbuilt, described only as a "larger
+  system" framing this repo's scope note references. Using raw detection output as a final
+  decision input, without a human or downstream system in the loop, is a misuse of this model.
+
+## Training Data
+
+[CarDD](https://cardd-ustc.github.io/) (Wang, Li & Wu, 2023) - 4,000 images, 6 damage classes,
+official train/val/test split (2,816/810/374). Not redistributable (see README's Dataset section
+for the license and citation requirement) - this repository never bundles it.
+
+**Known gap between this data and real deployment conditions**: CarDD's images are comparatively
+clean, close-up, well-composed damage photos - not the messy, variable-angle, variable-lighting,
+variable-background field phone photos this model would actually see in a remarketing yard. This
+model has been validated on public benchmark data; it has **not** been validated under real
+deployment conditions, and should not be assumed to generalize to them without further testing.
+
+## Evaluation Data
+
+CarDD's own held-out **test** split (374 images, 785 annotated instances) - kept separate from
+the training-time validation split throughout (see README's Train/val/test discipline section).
+
+## Metrics
+
+Precision, recall, F1, AP50, and AP50-95, reported per-class and aggregated (`models/champion_metrics.json`,
+schema in `src/cardd/metrics_schema.py`).
+
+**Recall is the metric this project weights most heavily**, not aggregate mAP - a missed
+detection (false negative) risks understating reconditioning effort and reaching the wrong
+recon/auction/write-off outcome downstream, which is a worse failure mode here than a false
+positive. This is also literally what gates automated promotion (`cardd-promote`'s
+`decide_promotion()`): a challenger must not regress on held-out test recall to replace the
+champion, regardless of what happens to mAP.
+
+## Quantitative Results (current champion, test split)
+
+| precision | recall | mAP50 | mAP50-95 |
+|---|---|---|---|
+| 0.746 | 0.708 | 0.742 | 0.559 |
+
+**Per-class:**
+
+| class | precision | recall | F1 | AP50 | AP50-95 |
+|---|---|---|---|---|---|
+| dent | 0.626 | 0.602 | 0.614 | 0.612 | 0.341 |
+| scratch | 0.603 | 0.580 | 0.591 | 0.566 | 0.297 |
+| crack | 0.527 | 0.493 | 0.509 | 0.487 | 0.264 |
+| glass shatter | 0.920 | 0.958 | 0.938 | 0.980 | 0.859 |
+| lamp broken | 0.902 | 0.797 | 0.846 | 0.896 | 0.728 |
+| tire flat | 0.898 | 0.821 | 0.858 | 0.913 | 0.865 |
+
+Class frequency alone does not explain this spread - dent and scratch are the *most* common
+training classes but the *worst*-performing, since they're subtle, highly-variable surface
+deformations, unlike the visually distinctive glass/lamp/tire classes. See the README's Results
+Analysis section for the full discussion, including the resolution trade-off (this champion,
+imgsz=1024, trades some precision/mAP50-95 for better recall and much better crack detection
+versus the imgsz=640 alternative, `01_cardd_yolo11n` - both are documented in the README's Results
+sections).
+
+## Ethical Considerations and Risks
+
+- **Consequence of a missed detection**: in the reconditioning-assessment system this model would
+  feed, a false negative means real damage goes unrecorded - understating repair effort and risking
+  an incorrect recondition/auction/write-off outcome for that vehicle. This is the direct reason
+  recall, not aggregate accuracy, drives both the reported headline metric and the automated
+  promotion gate.
+- **Class imbalance** (~10x between dent/scratch and tire flat in the training data) means
+  aggregate metrics can look better than performance on the classes that are actually hardest and
+  most common - always read the per-class table, not just the aggregate row.
+- **Domain gap risk**: since training/eval data is comparatively clean CarDD imagery, deploying
+  this model against messy real-world photos without further validation risks silently worse
+  real-world performance than the reported benchmark numbers suggest.
+- **No confidence/abstention mechanism**: the model always returns its best guess at whatever
+  confidence threshold the caller sets; it does not know when it doesn't know. A downstream system
+  treating any detection (or non-detection) as ground truth without a human review step is
+  relying on a guarantee this model does not provide.
+
+## Caveats and Recommendations
+
+- **Not validated for real deployment conditions** - see Training Data above. Recommended before
+  any real use: evaluate against actual field photos, not just CarDD's test split.
+- **No automated retraining** - only promotion (compare + publish + PR-gated) is automated;
+  training remains a manual step on Kaggle. See README's Known limitations for the full picture.
+- **Live inference latency**: the public demo runs on a CPU-throttled free tier and takes ~99s per
+  request - a correctness proof, not a latency benchmark. See README's Known limitations.
+- **This document can drift from the actual live champion** if a promotion happens without this
+  file being updated to match - `models/champion_metrics.json` is the authoritative source; if
+  the two disagree, trust the JSON file over this document's prose.
