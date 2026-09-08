@@ -246,6 +246,10 @@ reads from changes before a human approves it:
    `CHAMPION_WEIGHTS_URL`/`DEFAULT_CHAMPION_URL` actually point at. This is the step that makes a
    promotion "real"; nothing before it touches what production would serve.
 
+This isn't just workflow YAML sitting unused - **[see it happen for real: PR #1](https://github.com/JShi12/vehicleDD/pull/1)**,
+where `02_cardd_yolo11n_imgsz` (imgsz=1024) was promoted over the original champion on a genuine
+recall improvement (0.708 vs 0.685), with the real decision comparison as the PR's own description.
+
 Even after that, Render doesn't redeploy itself; going live is still a manual step (see
 [Inference service](#inference-service) above) since no Render API access exists to automate it.
 
