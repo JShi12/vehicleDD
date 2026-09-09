@@ -9,7 +9,7 @@ idle, and see [Known limitations](#known-limitations) before judging response ti
 A narrow-component implementation of the visual-damage-detection stage of a vehicle
 reconditioning-effort assessment system (see problem framing below): a YOLO11 damage detector
 trained and evaluated against the public [CarDD](https://cardd-ustc.github.io/) dataset, packaged
-as a reproducible training pipeline plus a deployable inference service.
+as a reproducible training pipeline plus a deployable inference service. 
 
 **What's here:**
 
@@ -24,7 +24,7 @@ as a reproducible training pipeline plus a deployable inference service.
 
 ## Scope
 
-This repository implements only the damage detection component of a larger end-to-end vehicle condition assessment pipeline.
+This repository implements only the damage detection component of a larger end-to-end vehicle condition assessment pipeline. It was built with Claude Code as a development accelerator.
 
 The implemented component detects visible vehicle damage (e.g. dents, scratches, cracks and broken glass) from individual images using an object detection model. The detector is intended to provide the visual evidence for subsequent stages of the system.
 
