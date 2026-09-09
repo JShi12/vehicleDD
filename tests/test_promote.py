@@ -10,10 +10,28 @@ from cardd.promote import (
     MODEL_CARD_START_MARKER,
     README_END_MARKER,
     README_START_MARKER,
+    SNAPSHOT_MAP50_95_END_MARKER,
+    SNAPSHOT_MAP50_95_START_MARKER,
+    SNAPSHOT_MAP50_END_MARKER,
+    SNAPSHOT_MAP50_START_MARKER,
+    SNAPSHOT_RECALL_END_MARKER,
+    SNAPSHOT_RECALL_START_MARKER,
     apply_promotion,
     build_champion_pointer,
     decide_promotion,
+    splice_inline_marker,
     splice_marked_section,
+)
+
+# Every README fixture below needs the three inline snapshot markers too, on top of the block
+# README_START/END_MARKER pair - apply_promotion() now spliced both, and fails loudly (like the
+# block splice) if a marker is missing. Kept on one line each, matching how they actually sit
+# inside a real markdown table cell (see promote.py's SNAPSHOT_* comments for why - a marker on
+# its own line would break the table).
+SNAPSHOT_ROW = (
+    f"| recall | {SNAPSHOT_RECALL_START_MARKER}old{SNAPSHOT_RECALL_END_MARKER} |\n"
+    f"| mAP50 | {SNAPSHOT_MAP50_START_MARKER}old{SNAPSHOT_MAP50_END_MARKER} |\n"
+    f"| mAP50-95 | {SNAPSHOT_MAP50_95_START_MARKER}old{SNAPSHOT_MAP50_95_END_MARKER} |\n"
 )
 
 
@@ -118,6 +136,24 @@ def test_splice_marked_section_marker_pairs_are_independent():
         splice_marked_section(text, "new content", README_START_MARKER, README_END_MARKER)
 
 
+def test_splice_inline_marker_replaces_between_markers_on_one_line():
+    cell = f"| recall | {SNAPSHOT_RECALL_START_MARKER}old{SNAPSHOT_RECALL_END_MARKER} |"
+    updated = splice_inline_marker(
+        cell, "**0.708**", SNAPSHOT_RECALL_START_MARKER, SNAPSHOT_RECALL_END_MARKER
+    )
+    expected = f"| recall | {SNAPSHOT_RECALL_START_MARKER}**0.708**{SNAPSHOT_RECALL_END_MARKER} |"
+    assert updated == expected
+    # crucially, no newline was introduced - the row must stay a single line or the table breaks
+    assert "\n" not in updated
+
+
+def test_splice_inline_marker_raises_if_markers_missing():
+    with pytest.raises(ValueError, match="markers"):
+        splice_inline_marker(
+            "| recall | 0.6 |", "0.7", SNAPSHOT_RECALL_START_MARKER, SNAPSHOT_RECALL_END_MARKER
+        )
+
+
 def test_apply_promotion_writes_all_files(tmp_path):
     challenger_metrics_path = tmp_path / "challenger_metrics.json"
     champion_json_path = tmp_path / "models" / "champion.json"
@@ -128,7 +164,8 @@ def test_apply_promotion_writes_all_files(tmp_path):
     challenger = make_metrics(recall=0.7, run_name="03_tuned")
     challenger_metrics_path.write_text(json.dumps(challenger))
     readme_path.write_text(
-        "# Title\n\n## Current champion\n\n"
+        "# Title\n\n## Project snapshot\n\n" + SNAPSHOT_ROW +
+        "\n## Current champion\n\n"
         f"{README_START_MARKER}\nold\n{README_END_MARKER}\n"
     )
     model_card_path.write_text(
@@ -160,6 +197,8 @@ def test_apply_promotion_writes_all_files(tmp_path):
     readme_text = readme_path.read_text()
     assert "old" not in readme_text
     assert "03_tuned" in readme_text
+    # snapshot table cells got the real test-split numbers, not just "not old"
+    assert f"{SNAPSHOT_RECALL_START_MARKER}**0.700**{SNAPSHOT_RECALL_END_MARKER}" in readme_text
 
     model_card_text = model_card_path.read_text()
     assert "03_tuned" in model_card_text
@@ -171,7 +210,7 @@ def test_apply_promotion_skips_model_card_when_not_given(tmp_path):
     challenger_metrics_path = tmp_path / "challenger_metrics.json"
     readme_path = tmp_path / "README.md"
     challenger_metrics_path.write_text(json.dumps(make_metrics(recall=0.7, run_name="03_tuned")))
-    readme_path.write_text(f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
+    readme_path.write_text(SNAPSHOT_ROW + f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
 
     apply_promotion(
         challenger_metrics_path=challenger_metrics_path,
@@ -225,7 +264,9 @@ def test_cli_apply_writes_files(tmp_path):
     champion_metrics.write_text(json.dumps(make_metrics(recall=0.60)))
     challenger_metrics.write_text(json.dumps(make_metrics(recall=0.70, run_name="challenger")))
     readme = tmp_path / "README.md"
-    readme.write_text(f"# Title\n\n{README_START_MARKER}\nold\n{README_END_MARKER}\n")
+    readme.write_text(
+        f"# Title\n\n{SNAPSHOT_ROW}\n{README_START_MARKER}\nold\n{README_END_MARKER}\n"
+    )
     champion_json = tmp_path / "models" / "champion.json"
 
     result = _run_cli(
@@ -250,7 +291,7 @@ def test_cli_apply_writes_model_card(tmp_path):
     champion_metrics.write_text(json.dumps(make_metrics(recall=0.60)))
     challenger_metrics.write_text(json.dumps(make_metrics(recall=0.70, run_name="challenger")))
     readme = tmp_path / "README.md"
-    readme.write_text(f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
+    readme.write_text(SNAPSHOT_ROW + f"{README_START_MARKER}\nold\n{README_END_MARKER}\n")
     model_card = tmp_path / "MODEL_CARD.md"
     model_card.write_text(f"{MODEL_CARD_START_MARKER}\nold\n{MODEL_CARD_END_MARKER}\n")
     champion_json = tmp_path / "models" / "champion.json"

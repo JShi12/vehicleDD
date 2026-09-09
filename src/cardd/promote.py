@@ -19,6 +19,20 @@ README_END_MARKER = "<!-- promote:champion-results:end -->"
 MODEL_CARD_START_MARKER = "<!-- promote:model-card-results:start -->"
 MODEL_CARD_END_MARKER = "<!-- promote:model-card-results:end -->"
 
+# README "Project snapshot" table cells - inline (same-line) markers, not block ones. Verified via
+# GitHub's own Markdown API that a marker on its own line inside a GFM table truncates the table
+# (rows after it render as raw pipe-delimited text, not a table), so these must stay inline within
+# their cell rather than wrapping a block like the pairs above. Splicing these keeps the snapshot
+# table's headline numbers from silently drifting out of sync with the Current champion section
+# after a promotion - the exact class of staleness bug this project has hit before (e.g. the
+# champion release description going stale).
+SNAPSHOT_RECALL_START_MARKER = "<!-- promote:snapshot-recall:start -->"
+SNAPSHOT_RECALL_END_MARKER = "<!-- promote:snapshot-recall:end -->"
+SNAPSHOT_MAP50_START_MARKER = "<!-- promote:snapshot-map50:start -->"
+SNAPSHOT_MAP50_END_MARKER = "<!-- promote:snapshot-map50:end -->"
+SNAPSHOT_MAP50_95_START_MARKER = "<!-- promote:snapshot-map50-95:start -->"
+SNAPSHOT_MAP50_95_END_MARKER = "<!-- promote:snapshot-map50-95:end -->"
+
 
 def decide_promotion(
     champion: dict,
@@ -118,6 +132,31 @@ def splice_marked_section(
     return text[:content_start] + "\n" + new_body.strip() + "\n" + text[end_idx:]
 
 
+def splice_inline_marker(
+    text: str,
+    new_value: str,
+    start_marker: str,
+    end_marker: str,
+) -> str:
+    """Like splice_marked_section, but for markers that sit inline within a single line (e.g. one
+    cell of a markdown table) rather than wrapping a block. No whitespace or newlines are added
+    around new_value - inserting either would break the enclosing table row, since a GFM table row
+    must stay on one line (see the SNAPSHOT_* marker comments above for why this had to be a
+    separate function rather than reusing splice_marked_section).
+
+    Raises ValueError if either marker is missing, matching splice_marked_section's fail-loud style.
+    """
+    start_idx = text.find(start_marker)
+    end_idx = text.find(end_marker)
+    if start_idx == -1 or end_idx == -1:
+        raise ValueError(f"Document is missing the markers ({start_marker!r} / {end_marker!r})")
+    if end_idx < start_idx:
+        raise ValueError("End marker appears before start marker")
+
+    content_start = start_idx + len(start_marker)
+    return text[:content_start] + new_value + text[end_idx:]
+
+
 def apply_promotion(
     challenger_metrics_path: Path,
     champion_json_path: Path,
@@ -165,9 +204,26 @@ def apply_promotion(
 
     readme_path = Path(readme_path)
     readme_text = readme_path.read_text()
-    readme_path.write_text(
-        splice_marked_section(readme_text, new_body, README_START_MARKER, README_END_MARKER)
+    readme_text = splice_marked_section(
+        readme_text, new_body, README_START_MARKER, README_END_MARKER
     )
+
+    # Keep the "Project snapshot" table's headline numbers wired to the same source of truth,
+    # rather than letting them silently go stale after a promotion. Only when a test split is
+    # actually present - matches metrics_to_markdown()'s own leniency above, which likewise only
+    # renders a test row/per-class table when one exists.
+    if "test" in challenger_metrics["splits"]:
+        test_agg = challenger_metrics["splits"]["test"]["aggregate"]
+        for value, start_marker, end_marker in (
+            (test_agg["recall"], SNAPSHOT_RECALL_START_MARKER, SNAPSHOT_RECALL_END_MARKER),
+            (test_agg["map50"], SNAPSHOT_MAP50_START_MARKER, SNAPSHOT_MAP50_END_MARKER),
+            (test_agg["map50_95"], SNAPSHOT_MAP50_95_START_MARKER, SNAPSHOT_MAP50_95_END_MARKER),
+        ):
+            readme_text = splice_inline_marker(
+                readme_text, f"**{value:.3f}**", start_marker, end_marker
+            )
+
+    readme_path.write_text(readme_text)
 
     if model_card_path is not None:
         model_card_path = Path(model_card_path)

@@ -3,22 +3,28 @@
 [![CI](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml/badge.svg)](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml)
 
 **🔗 Live demo: [cardd-149g.onrender.com/docs](https://cardd-149g.onrender.com/docs)** - try
-`/predict` with your own image. Free-tier hosting, so allow ~1 min for cold start if it's been
-idle, and see [Known limitations](#known-limitations) before judging response time.
+`/predict` with your own image. The demo runs on Render's free tier, so allow ~1 min for cold start if it's been idle, and see [Known limitations](#known-limitations) before judging response time.
 
-A narrow-component implementation of the visual-damage-detection stage of a vehicle
-reconditioning-effort assessment system (see problem framing below): a YOLO11 damage detector
-trained and evaluated against the public [CarDD](https://cardd-ustc.github.io/) dataset, packaged
-as a reproducible training pipeline plus a deployable inference service. 
+A **production-style computer-vision component** for the visual-damage stage of a vehicle reconditioning assessment system. The project trains a YOLO11 detector on the public [CarDD](https://cardd-ustc.github.io/) dataset and takes the model from **dataset conversion and reproducible experiments through held-out evaluation, model promotion, containerised inference, CI, and live deployment**. 
 
-**What's here:**
+**Project snapshot:**
 
-- ✅ Trained detector with real, reproducible metrics — [current results](#current-champion)
-- ✅ Experiment tracking — [MLflow](#training-pipeline)
-- ✅ Inference service, live — [Dockerized FastAPI](#inference-service)
-- ✅ CI — [lint, a Python 3.9-3.12 pytest matrix, Docker build-and-boot smoke test](#continuous-integration)
-- ✅ Automated, PR-gated model promotion — [not just a training script](#continuous-integration)
-- ✅ [Model card](MODEL_CARD.md) — intended use, data, and risks, not just accuracy numbers
+| Area | Implementation |
+|---|---|
+| Model | YOLO11n |
+| Dataset | [CarDD](#dataset) — 4,000 images, 6 damage classes |
+| Champion test recall | <!-- promote:snapshot-recall:start -->**0.708**<!-- promote:snapshot-recall:end --> ([current results](#current-champion)) |
+| Champion test mAP50 | <!-- promote:snapshot-map50:start -->**0.742**<!-- promote:snapshot-map50:end --> |
+| Champion test mAP50-95 | <!-- promote:snapshot-map50-95:start -->**0.559**<!-- promote:snapshot-map50-95:end --> |
+| Experiment tracking | [MLflow](#training-pipeline) |
+| Serving | [Dockerized FastAPI, live](#inference-service) |
+| Testing / CI | [pytest + Ruff + GitHub Actions](#continuous-integration) |
+| Model lifecycle | [Versioned releases, PR-gated promotion](#continuous-integration) — not just a training script |
+| Model card | [intended use, data, and risks, not just accuracy numbers](MODEL_CARD.md) |
+
+The three champion metrics above are spliced in by the same `cardd-promote` automation that
+updates [Current champion](#current-champion) below - one promotion, one source of truth, no
+hand-updated number to forget.
 
 ![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_cardd_yolo11n_imgsz/cardd_yolo11n_qualitative/image5.jpg)
 
