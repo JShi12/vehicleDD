@@ -13,9 +13,9 @@ A **production-style computer-vision component** for the visual-damage stage of 
 |---|---|
 | Model | YOLO11n |
 | Dataset | [CarDD](#dataset) — 4,000 images, 6 damage classes |
-| Champion test recall | <!-- promote:snapshot-recall:start -->**0.708**<!-- promote:snapshot-recall:end --> ([current results](#current-champion)) |
-| Champion test mAP50 | <!-- promote:snapshot-map50:start -->**0.742**<!-- promote:snapshot-map50:end --> |
-| Champion test mAP50-95 | <!-- promote:snapshot-map50-95:start -->**0.559**<!-- promote:snapshot-map50-95:end --> |
+| Champion test recall | <!-- promote:snapshot-recall:start -->**0.705**<!-- promote:snapshot-recall:end --> ([current results](#current-champion)) |
+| Champion test mAP50 | <!-- promote:snapshot-map50:start -->**0.743**<!-- promote:snapshot-map50:end --> |
+| Champion test mAP50-95 | <!-- promote:snapshot-map50-95:start -->**0.560**<!-- promote:snapshot-map50-95:end --> |
 | Experiment tracking | [MLflow](#training-pipeline) |
 | Serving | [Dockerized FastAPI, live](#inference-service) |
 | Testing / CI | [pytest + Ruff + GitHub Actions](#continuous-integration) |
@@ -26,7 +26,7 @@ The three champion metrics above are spliced in by the same `cardd-promote` auto
 updates [Current champion](#current-champion) below - one promotion, one source of truth, no
 hand-updated number to forget.
 
-![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_cardd_yolo11n_imgsz/cardd_yolo11n_qualitative/image5.jpg)
+![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_qualitative/image5.jpg)
 
 ## Scope
 
@@ -88,8 +88,8 @@ notebooks/
   kaggle_run_template.ipynb        generic template: pick a config, run top to bottom
 outputs/
   eda/, sanity/                    local EDA + conversion sanity-check outputs
-  kaggle_run/01_cardd_yolo11n/    downloaded weights, metrics, plots - run 1
-  kaggle_run/02_cardd_yolo11n_imgsz/  downloaded weights, metrics, plots - run 2
+  kaggle_run/01_baseline/          downloaded weights, metrics, plots - run 1 (imgsz=640)
+  kaggle_run/02_imgsz1024/         downloaded weights, metrics, plots - run 2 (imgsz=1024)
 models/
   champion.json                    pointer: which run is champion, where its release assets live
   champion_metrics.json            the champion's metrics.json - source of truth for its numbers
@@ -188,24 +188,26 @@ rendered from. For the model's intended use, data, and risks (not just its numbe
 `models/champion_metrics.json` if they might have drifted apart.
 
 <!-- promote:champion-results:start -->
-## Results — `02_cardd_yolo11n_imgsz`
+## Results — `cardd_yolo11n_imgsz1024`
 
-Config: `configs/cardd_yolo.yaml`  
+Config: `configs/experiments/02_imgsz1024.yaml`  
+Train time: 2.197 hours  
 
 | split | images | instances | precision | recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|---|---|
-| **test** | 374 | 785 | 0.746 | 0.708 | 0.742 | 0.559 |
+| val | 810 | 1744 | 0.736 | 0.728 | 0.731 | 0.557 |
+| **test** | 374 | 785 | 0.747 | 0.705 | 0.743 | 0.560 |
 
 **Per-class (test set):**
 
 | class | precision | recall | F1 | AP50 | AP50-95 |
 |---|---|---|---|---|---|
-| dent | 0.626 | 0.602 | 0.614 | 0.612 | 0.341 |
-| scratch | 0.603 | 0.580 | 0.591 | 0.566 | 0.297 |
-| crack | 0.527 | 0.493 | 0.509 | 0.487 | 0.264 |
-| glass shatter | 0.920 | 0.958 | 0.938 | 0.980 | 0.859 |
-| lamp broken | 0.902 | 0.797 | 0.846 | 0.896 | 0.728 |
-| tire flat | 0.898 | 0.821 | 0.858 | 0.913 | 0.865 |
+| dent | 0.628 | 0.606 | 0.617 | 0.613 | 0.341 |
+| scratch | 0.607 | 0.579 | 0.593 | 0.567 | 0.297 |
+| crack | 0.531 | 0.486 | 0.507 | 0.491 | 0.267 |
+| glass shatter | 0.921 | 0.958 | 0.939 | 0.980 | 0.858 |
+| lamp broken | 0.900 | 0.782 | 0.837 | 0.895 | 0.728 |
+| tire flat | 0.897 | 0.821 | 0.858 | 0.914 | 0.867 |
 <!-- promote:champion-results:end -->
 
 **Qualitative check - ground truth vs. predictions**, 16 real held-out test images (not
@@ -213,10 +215,10 @@ cherry-picked - the first batch Ultralytics happened to visualize), generated au
 the champion's own `.val()` run:
 
 *Ground truth:*
-![Ground truth labels on a batch of 16 held-out test images](outputs/kaggle_run/02_cardd_yolo11n_imgsz/cardd_yolo11n_test/val_batch0_labels.jpg)
+![Ground truth labels on a batch of 16 held-out test images](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_test/val_batch0_labels.jpg)
 
 *Model predictions on the same 16 images:*
-![Model predictions on the same batch of 16 held-out test images](outputs/kaggle_run/02_cardd_yolo11n_imgsz/cardd_yolo11n_test/val_batch0_pred.jpg)
+![Model predictions on the same batch of 16 held-out test images](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_test/val_batch0_pred.jpg)
 
 Unlike the table above, this comparison is **not** auto-regenerated by `cardd-promote` - a future
 promotion doesn't produce this specific image pair as part of `metrics.json`, only as a manual

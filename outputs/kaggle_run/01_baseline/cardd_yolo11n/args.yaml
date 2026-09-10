@@ -1,7 +1,7 @@
 task: detect
 mode: train
 model: yolo11n.pt
-data: /kaggle/working/cardd_yolo.yaml
+data: configs/cardd_yolo.yaml
 epochs: 100
 time: null
 patience: 20
@@ -12,7 +12,7 @@ save_period: -1
 cache: ram
 device: '0'
 workers: 8
-project: /kaggle/working/runs
+project: /kaggle/working/vehicleDD/runs
 name: cardd_yolo11n
 exist_ok: true
 pretrained: true
@@ -108,4 +108,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: tracktrack.yaml
-save_dir: /kaggle/working/runs/cardd_yolo11n
+save_dir: /kaggle/working/vehicleDD/runs/cardd_yolo11n
