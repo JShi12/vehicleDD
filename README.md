@@ -1,5 +1,4 @@
 # Vehicle Damage Detection — CarDD
-![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_qualitative/image5.jpg)
 
 [![CI](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml/badge.svg)](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml)
 
@@ -7,6 +6,8 @@
 `/predict` with your own image. The demo runs on Render's free tier, so allow ~1 min for cold start if it's been idle, and see [Known limitations](#known-limitations) before judging response time.
 
 A **production-style computer-vision component** for the visual-damage stage of a vehicle reconditioning assessment system. The project trains a YOLO11 detector on the public [CarDD](https://cardd-ustc.github.io/) dataset and takes the model from **dataset conversion and reproducible experiments through held-out evaluation, model promotion, containerised inference, CI, and live deployment**. 
+
+![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_qualitative/image5.jpg)
 
 **Project snapshot:**
 
