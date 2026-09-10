@@ -1,4 +1,5 @@
 # Vehicle Damage Detection — CarDD
+![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_qualitative/image5.jpg)
 
 [![CI](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml/badge.svg)](https://github.com/JShi12/vehicleDD/actions/workflows/ci.yml)
 
@@ -25,8 +26,6 @@ A **production-style computer-vision component** for the visual-damage stage of 
 The three champion metrics above are spliced in by the same `cardd-promote` automation that
 updates [Current champion](#current-champion) below - one promotion, one source of truth, no
 hand-updated number to forget.
-
-![Detection example: dent and scratch found on a real CarDD test image, not cherry-picked - see the labels-vs-predictions comparison in Results below for many more](outputs/kaggle_run/02_imgsz1024/cardd_yolo11n_imgsz1024_qualitative/image5.jpg)
 
 ## Scope
 
