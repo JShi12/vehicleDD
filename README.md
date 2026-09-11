@@ -15,7 +15,7 @@ A **production-style computer-vision component** for the visual-damage stage of 
 |---|---|
 | Model | YOLO11n |
 | Dataset | [CarDD](#dataset) — 4,000 images, 6 damage classes |
-| Champion test recall | <!-- promote:snapshot-recall:start -->**0.705**<!-- promote:snapshot-recall:end --> ([current results](#current-champion)) |
+| Champion test recall | <!-- promote:snapshot-recall:start -->**0.705**<!-- promote:snapshot-recall:end --> ([current results](#champion)) |
 | Champion test mAP50 | <!-- promote:snapshot-map50:start -->**0.743**<!-- promote:snapshot-map50:end --> |
 | Champion test mAP50-95 | <!-- promote:snapshot-map50-95:start -->**0.560**<!-- promote:snapshot-map50-95:end --> |
 | Experiment tracking | [MLflow](#training-pipeline) |
@@ -25,7 +25,7 @@ A **production-style computer-vision component** for the visual-damage stage of 
 | Model card | [intended use, data, and risks, not just accuracy numbers](MODEL_CARD.md) |
 
 The three champion metrics above are spliced in by the same `cardd-promote` automation that
-updates [Current champion](#current-champion) below - one promotion, one source of truth, no
+updates [Champion](#champion) below - one promotion, one source of truth, no
 hand-updated number to forget.
 
 ## Scope
@@ -37,13 +37,11 @@ The implemented component detects visible vehicle damage (e.g. dents, scratches,
 Beyond training and evaluation (producing a trained model artifact and its measured performance),
 this repo also includes an inference service (FastAPI + Docker, see
 [Inference service](#inference-service) below), experiment tracking (MLflow), and an automated,
-PR-gated promotion pipeline (see [Continuous integration](#continuous-integration)) - training
-itself, however, stays manual on Kaggle. It does **not** include the effort/grade prediction or
+PR-gated promotion pipeline (see [Continuous integration](#continuous-integration)). It does **not** include the effort/grade prediction or
 recon/auction/write-off decision logic those detections would feed into (see
 [Known limitations](#known-limitations)).
 
-For the model itself - intended use, training/eval data, and risks, not just its accuracy numbers
-- see [MODEL_CARD.md](MODEL_CARD.md).
+For the model itself - intended use, training/eval data, and risks, see [MODEL_CARD.md](MODEL_CARD.md).
 
 ## Dataset
 
@@ -96,7 +94,7 @@ models/
 tests/                             pytest suite - synthetic-data fixtures only (see CI below)
 Dockerfile                         inference service container image
 MODEL_CARD.md                      model details/intended use/risks - not just numbers (see README's
-                                    Current champion section)
+                                    Results section)
 ```
 
 ## Setup
@@ -107,18 +105,38 @@ pip install -e ".[train,dev]"
 cardd-eda                         # -> outputs/eda/
 cardd-convert                     # -> data/cardd_yolo/, configs/cardd_yolo.yaml
 cardd-verify                      # -> outputs/sanity/
+cardd-train --config configs/experiments/01_baseline.yaml   # trains on local GPU
+mlflow ui --backend-store-uri mlruns
 ```
 
-Actual training happened on Kaggle (free T4 GPU) rather than locally. `notebooks/01_cardd_yolo11n.ipynb`
-and `notebooks/02_kaggle-yolo11-cardd-imgsz.ipynb` are each the source of truth for their own run
-(see their respective `## Results —` sections below) - both re-run the same COCO→YOLO conversion
-used locally against the raw dataset, not a pre-converted copy, and both predate the `cardd`
-package refactor, inlining that conversion logic directly rather than importing it - kept as-is
-since they're the executed evidentiary record. Neither notebook is "the champion," though: which
-run is currently promoted is tracked separately, in `models/champion.json` (see
-[Current champion](#current-champion) below) - that pointer can move to a different run entirely
-after a future promotion, independent of either notebook. New runs use `kaggle_run_template.ipynb`,
-which calls the installed package instead of inlining the conversion logic.
+`cardd-train` is a plain console script over Ultralytics, and
+`device: 0` in the experiment configs means "local GPU 0" on any machine. The commands
+above run as-is on a local NVIDIA GPU; override with `--set train.device=cpu` if there isn't one.
+The Kaggle-only plumbing (`/kaggle/input`, `/kaggle/working`, the clone-and-pip-install cells) lives
+entirely in `kaggle_run_template.ipynb`, which a local-GPU user can skip.
+
+The two published training runs were trained on Kaggle using a free T4 GPU rather than locally:
+
+- `notebooks/01_cardd_yolo11n.ipynb` — Run 01
+- `notebooks/02_kaggle-yolo11-cardd-imgsz.ipynb` — Run 02
+
+Each notebook is the source of truth for its corresponding run (see the `### Run 01` and
+`### Run 02` subsections under [Results](#results)). Both notebooks start from the raw dataset and
+independently perform the same COCO→YOLO conversion used by the local training workflow; neither
+relies on a pre-converted dataset.
+
+These notebooks predate the `cardd` package refactor, so the COCO→YOLO conversion logic is
+intentionally inlined in each notebook rather than imported from the package. This duplication is
+preserved because the notebooks are the executed evidentiary records of the published runs and
+should continue to reflect the code that actually produced those results.
+
+Importantly, the notebooks do not define which model is currently promoted. The currently promoted
+model is tracked separately by `models/champion.json`. That pointer may be changed during a future
+promotion to reference a different run, without changing the historical notebooks.
+
+New training runs use `kaggle_run_template.ipynb`. Unlike the historical notebooks, the template
+uses the installed `cardd` package for the shared data-conversion and training functionality rather
+than duplicating that logic inline.
 
 ## Training pipeline
 
@@ -137,12 +155,32 @@ cardd-train --config configs/experiments/01_baseline.yaml
 cardd-train --config configs/experiments/03_tuned.yaml --set train.epochs=50  # ad hoc override
 ```
 
-This trains, runs the held-out test evaluation, writes `metrics.json` (aggregate + per-class
+`cardd-train` trains, runs the held-out test evaluation, writes `metrics.json` (aggregate + per-class
 precision/recall/F1/AP50/AP50-95 for both the val and test splits), and logs params/metrics/artifacts
 to a local [MLflow](https://mlflow.org/) tracking store (`mlruns/`, gitignored -
-`mlflow ui --backend-store-uri mlruns` to browse runs). `cardd-evaluate --weights <path> --split test`
-runs a standalone evaluation against an existing checkpoint without retraining -
-`src/cardd/report.py` then renders any `metrics.json` into the same markdown table format used below.
+`mlflow ui --backend-store-uri mlruns` to browse runs). 
+
+Training-time validation (`val2017`, watched during training for early stopping) is kept separate
+from the **held-out test evaluation** (`test2017`) - that second `.val()` call after training is
+the reported headline number, not the training-time val curve. Fixed seed (`seed=0`),
+`deterministic=True` (best-effort - full bit-exactness isn't guaranteed on GPU).
+
+### Setup decisions
+
+- **Detection, not segmentation.** Reconditioning effort is driven by which panel is damaged and
+  how severely, not the exact pixel outline — bounding boxes are cheaper to annotate and
+  sufficient for that purpose. (CarDD does include segmentation masks; they're available if
+  extent-sensitive classes like corrosion ever warrant it.)
+- **`cls91to80=False`** in the COCO→YOLO conversion. Ultralytics' converter defaults to remapping
+  category ids through COCO's standard 91→80 class table — meaningless for CarDD's own 6 custom
+  classes, and would silently produce wrong class assignments if left at the default. Verified by
+  cross-checking a converted label against the raw COCO JSON, and visually by independently
+  redrawing decoded YOLO boxes against the original images (`cardd-verify`).
+- **Official split used as-is** (2,816/810/374) — no re-splitting, to avoid leaking near-duplicate
+  crops across train/test.
+- **Class names derived from the dataset's own JSON**, not hardcoded, with an assertion that
+  category ids are contiguous starting at 1 (required for the `cls91to80=False` mapping to be
+  valid) — fails loudly rather than silently mislabeling classes if that assumption ever breaks.
 
 ## Inference service
 
@@ -177,18 +215,76 @@ at import time (pulled in transitively through `ultralytics`) - the Dockerfile i
 `apt-get` (`libgl1`, `libxcb1`, etc.); without that fix the container fails at startup with
 `ImportError: libxcb.so.1: cannot open shared object file`.
 
-## Current champion
+## Continuous integration
 
-Auto-generated by `cardd-promote` whenever a challenger is promoted (see
-[Continuous integration](#continuous-integration) below) - do not edit the block below by hand,
-it will be overwritten on the next promotion. `models/champion.json` records which run this is and
-where its release assets live; `models/champion_metrics.json` is the exact source this table is
-rendered from. For the model's intended use, data, and risks (not just its numbers), see
-[MODEL_CARD.md](MODEL_CARD.md) - note that file is currently updated by hand, so check it against
-`models/champion_metrics.json` if they might have drifted apart.
+`.github/workflows/ci.yml` runs on every push and pull request. It performs three checks:
+
+- Linting with `ruff`
+- The full `pytest` test suite
+- A Docker build-and-boot smoke test
+
+CI deliberately never uses the real CarDD dataset or real trained weights. The CarDD license
+prohibits redistribution of the dataset, including storing it in CI caches. Instead, the test
+suite procedurally generates a tiny synthetic COCO-format dataset via
+`tests/fixtures/synthetic_dataset.py`. The CI pipeline then trains a randomly initialized model on
+that synthetic dataset for a single epoch. This is intentionally a plumbing test, verifying that
+the data conversion, training, packaging, and serving pipeline can work end-to-end in a clean
+environment.
+
+This CI training is not an evaluation of model quality. A successful CI run establishes that the
+pipeline works; it does not establish that the model detects objects accurately. Model accuracy
+and published performance results are evaluated separately using the real CarDD dataset in the
+Kaggle runs described in the [Results](#results) section.
+
+**Promotion** is deliberately separated from CI and from model training. It is implemented as a
+human-reviewed gate across two workflows, so a change cannot become the production model solely
+because code or CI changed. Production only consumes a model after the explicit promotion process
+has been completed and approved by a human:
+
+1. **`.github/workflows/promote.yml`** (manually triggered): given a Kaggle-trained challenger's
+   Release (tag containing its `best.pt` + `metrics.json`), compares its held-out test recall
+   against the current champion (`models/champion_metrics.json`) - this project's own stated
+   priority is recall over aggregate mAP, since a missed detection is worse than a false positive
+   for the reconditioning-assessment use case this feeds into (see [Analysis](#analysis) below). If the
+   challenger doesn't regress on recall, it publishes a **permanent, versioned** release (safe -
+   nothing reads from this automatically) and opens a PR updating `models/champion.json`/
+   `models/champion_metrics.json` and regenerating the [Champion](#champion) table
+   via `cardd-promote` (reusing `report.py`'s `metrics_to_markdown()`) - reviewed and merged by a
+   human, never auto-committed to `main`.
+2. **`.github/workflows/activate-champion.yml`** (triggered only by a merge to `main` that touches
+   `models/champion.json` - i.e. only after step 1's PR is approved): reads which versioned release
+   was just approved and updates the **rolling** `champion` release tag - the one
+   `CHAMPION_WEIGHTS_URL`/`DEFAULT_CHAMPION_URL` actually point at. This is the step that makes a
+   promotion "real"; nothing before it touches what production would serve.
+
+A workflow file in a repo doesn't prove it actually works - it could just describe an untested,
+aspirational process. This one has actually been run, for real, on GitHub's own infrastructure:
+**[PR #1](https://github.com/JShi12/vehicleDD/pull/1)** is the genuine result - `02_cardd_yolo11n_imgsz`
+(imgsz=1024) promoted over the original champion on a real recall improvement (0.708 vs 0.685),
+with the actual decision comparison as the PR's own description, reviewed and merged like any
+other change.
+
+Even after that, Render doesn't redeploy itself; going live is still a manual step (see
+[Inference service](#inference-service) above) since no Render API access exists to automate it.
+
+## Results
+
+Two views of the same model. **Champion** is what is live right now - its table is auto-regenerated
+by `cardd-promote` on every promotion from `models/champion_metrics.json`. The **run** subsections
+are the frozen record of what was tried to get there. Numbers are held-out `test2017` unless
+labelled otherwise; `metrics.json` is the source, the tables are a rendering of it.
+
+### Champion
+
+`models/champion.json` records which run this is and where its release assets live;
+`models/champion_metrics.json` is the exact source the block below is rendered from - do not edit it
+by hand, `cardd-promote` overwrites it on the next promotion (see
+[Continuous integration](#continuous-integration) above). For the model's intended use, data, and
+risks - not just its numbers - see [MODEL_CARD.md](MODEL_CARD.md) (updated by hand; check it against
+`models/champion_metrics.json` if they might have drifted).
 
 <!-- promote:champion-results:start -->
-## Results — `cardd_yolo11n_imgsz1024`
+**`cardd_yolo11n_imgsz1024`**
 
 Config: `configs/experiments/02_imgsz1024.yaml`  
 Train time: 2.197 hours  
@@ -226,71 +322,7 @@ promotion doesn't produce this specific image pair as part of `metrics.json`, on
 download from the Kaggle run's own qualitative-prediction step. Treat it as illustrative of the
 run described above, not guaranteed to match `models/champion_metrics.json` after a later promotion.
 
-## Continuous integration
-
-`.github/workflows/ci.yml` runs on every push/PR: lint (`ruff`), the full `pytest` suite, and a
-Docker build-and-boot smoke test. CI never touches real CarDD data or a real trained weight -
-CarDD's license forbids redistributing the dataset (including into a CI cache), so `tests/`
-procedurally generates a tiny synthetic COCO-format dataset instead (`tests/fixtures/synthetic_dataset.py`)
-and trains a random-init model on it for one epoch, purely to prove the pipeline's plumbing is
-correct end-to-end. It says nothing about detection accuracy - that's what the Results section
-below, run against the real dataset on Kaggle, is for.
-
-**Promotion** is deliberately split across a review gate, in two workflows, so nothing production
-reads from changes before a human approves it:
-
-1. **`.github/workflows/promote.yml`** (manually triggered): given a Kaggle-trained challenger's
-   Release (tag containing its `best.pt` + `metrics.json`), compares its held-out test recall
-   against the current champion (`models/champion_metrics.json`) - this project's own stated
-   priority is recall over aggregate mAP, since a missed detection is worse than a false positive
-   for the reconditioning-assessment use case this feeds into (see Results Analysis below). If the
-   challenger doesn't regress on recall, it publishes a **permanent, versioned** release (safe -
-   nothing reads from this automatically) and opens a PR updating `models/champion.json`/
-   `models/champion_metrics.json` and regenerating the [Current champion](#current-champion) table
-   via `cardd-promote` (reusing `report.py`'s `metrics_to_markdown()`) - reviewed and merged by a
-   human, never auto-committed to `main`.
-2. **`.github/workflows/activate-champion.yml`** (triggered only by a merge to `main` that touches
-   `models/champion.json` - i.e. only after step 1's PR is approved): reads which versioned release
-   was just approved and updates the **rolling** `champion` release tag - the one
-   `CHAMPION_WEIGHTS_URL`/`DEFAULT_CHAMPION_URL` actually point at. This is the step that makes a
-   promotion "real"; nothing before it touches what production would serve.
-
-A workflow file in a repo doesn't prove it actually works - it could just describe an untested,
-aspirational process. This one has actually been run, for real, on GitHub's own infrastructure:
-**[PR #1](https://github.com/JShi12/vehicleDD/pull/1)** is the genuine result - `02_cardd_yolo11n_imgsz`
-(imgsz=1024) promoted over the original champion on a real recall improvement (0.708 vs 0.685),
-with the actual decision comparison as the PR's own description, reviewed and merged like any
-other change.
-
-Even after that, Render doesn't redeploy itself; going live is still a manual step (see
-[Inference service](#inference-service) above) since no Render API access exists to automate it.
-
-## Problem setup
-
-- **Detection, not segmentation.** Reconditioning effort is driven by which panel is damaged and
-  how severely, not the exact pixel outline — bounding boxes are cheaper to annotate and
-  sufficient for that purpose. (CarDD does include segmentation masks; they're available if
-  extent-sensitive classes like corrosion ever warrant it.)
-- **`cls91to80=False`** in the COCO→YOLO conversion. Ultralytics' converter defaults to remapping
-  category ids through COCO's standard 91→80 class table — meaningless for CarDD's own 6 custom
-  classes, and would silently produce wrong class assignments if left at the default. Verified by
-  cross-checking a converted label against the raw COCO JSON, and visually by independently
-  redrawing decoded YOLO boxes against the original images (`cardd-verify`).
-- **Official split used as-is** (2,816/810/374) — no re-splitting, to avoid leaking near-duplicate
-  crops across train/test.
-- **Class names derived from the dataset's own JSON**, not hardcoded, with an assertion that
-  category ids are contiguous starting at 1 (required for the `cls91to80=False` mapping to be
-  valid) — fails loudly rather than silently mislabeling classes if that assumption ever breaks.
-
-## Train/val/test discipline
-
-- Training-time validation (`val2017`, watched during training) is kept separate from the
-  **held-out test evaluation** (`test2017`), run explicitly after training via a second `.val()`
-  call — this is the reported headline number, not the training-time val curve.
-- Fixed seed (`seed=0`), `deterministic=True` (best-effort — full bit-exactness isn't guaranteed
-  on GPU).
-
-## Results — `01_cardd_yolo11n` (Ultralytics defaults, YOLO11n, 100 epochs, imgsz=640)
+### Run 01 — baseline (imgsz=640, Ultralytics defaults)
 
 100 epochs completed in **0.997 hours** on a Kaggle T4 (`patience=20` never triggered — training
 ran the full budget without a 20-epoch plateau).
@@ -315,7 +347,7 @@ Val and test agree closely — no indication of overfitting to the validation se
 
 ![Class distribution](outputs/eda/class_counts.png)
 
-## Results — `02_cardd_yolo11n_imgsz` (imgsz=1024, otherwise identical to run 1)
+### Run 02 — imgsz=1024 (only imgsz changed vs run 01)
 
 Confirmed via `args.yaml`: this run differs from run 1 by exactly one setting (`imgsz=1024` vs
 `640`) — optimizer, augmentation, and every other hyperparameter are untouched defaults, identical
@@ -338,7 +370,13 @@ compute cost predicted from the resolution increase; `patience=20` again never t
 | lamp broken | 0.948→0.900 | 0.783→0.782 | 0.857→0.837 | 0.866→0.895 | 0.741→0.728 |
 | tire flat | 0.926→0.898 | 0.844→0.821 | 0.883→0.858 | 0.907→0.914 | 0.874→0.868 |
 
-## Results Analysis
+![Per-class recall, run 01 (imgsz=640) vs run 02 (imgsz=1024) on the held-out test set: run 02 gains on dent +0.06, scratch +0.02, crack +0.09 and gives back a little on glass shatter -0.03, tire flat -0.02, lamp broken flat](outputs/kaggle_run/recall_01_vs_02_test.png)
+
+The +/- labels are test-set recall deltas. Net macro-mean recall goes 0.685 → 0.705, which is what
+promoted run 02; the interpretation is in [Analysis](#analysis) below. Chart built from the two
+runs' `metrics.json`, not auto-regenerated on promotion.
+
+### Analysis
 
 The validation and held-out test results are closely aligned (mAP50-95: 0.562 vs. 0.568), suggesting the model generalises reasonably well to unseen data and shows no obvious signs of overfitting to the validation set.
 

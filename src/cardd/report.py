@@ -33,7 +33,7 @@ def metrics_to_markdown(metrics_path: Path) -> str:
     with open(metrics_path) as f:
         metrics = json.load(f)
 
-    lines = [f"## Results — `{metrics['run_name']}`", ""]
+    lines = [f"**`{metrics['run_name']}`**", ""]
     if metrics.get("config_path"):
         lines.append(f"Config: `{metrics['config_path']}`  ")
     if metrics.get("train_seconds"):
