@@ -243,9 +243,7 @@ has been completed and approved by a human:
 
 1. **`.github/workflows/promote.yml`** (manually triggered): given a Kaggle-trained challenger's
    Release (tag containing its `best.pt` + `metrics.json`), compares its held-out test recall
-   against the current champion (`models/champion_metrics.json`) - this project's own stated
-   priority is recall over aggregate mAP, since a missed detection is worse than a false positive
-   for the reconditioning-assessment use case this feeds into (see [Analysis](#analysis) below). If the
+   against the current champion (`models/champion_metrics.json`). If the
    challenger doesn't regress on recall, it publishes a **permanent, versioned** release (safe -
    nothing reads from this automatically) and opens a PR updating `models/champion.json`/
    `models/champion_metrics.json` and regenerating the [Champion](#champion) table
@@ -413,30 +411,22 @@ different things being measured by the same number.
 
 ## Known limitations
 
+- **This is the detection stage only.** Effort/grade prediction, the recon/auction/write-off
+  decision, and the confidence/abstention mechanism are outside this proof of concept's scope.
 - **Domain gap**: CarDD images are comparatively clean, close-up, well-composed damage photos —
   not the messy, variable-angle, variable-lighting, variable-background field phone photos this
   detector would actually see in a remarketing yard. This proof of concept validates the modeling
   approach on public data; it does not validate deployment-condition robustness.
 - **Class imbalance** (~10× between dent/scratch and tire flat) means any single aggregate metric
   should be read with the per-class table alongside it, not in isolation.
-- **This is the detection stage only.** Effort/grade prediction, the recon/auction/write-off
-  decision, and the confidence/abstention mechanism are outside this proof of concept's scope.
-- **No automated retraining, but promotion is now automated.** Training itself stays manual on
-  Kaggle - GitHub Actions has no GPU, and training took ~1hr even on a Kaggle T4, so CPU training
-  in CI would be impractically slow. What *is* automated (`.github/workflows/promote.yml` /
+- **No automated retraining, but promotion is automated.** Training itself stays a manual step on
+  whatever GPU is available (Kaggle's free T4 here; a local GPU works identically, see
+  [Setup](#setup)). What *is* automated (`.github/workflows/promote.yml` /
   `cardd-promote`): comparing a newly-trained challenger against the current champion on recall,
   and - if it wins - publishing the release and opening a PR with the updated docs, for a human to
   review and merge. Going live is still a manual Render redeploy (no Render API access exists to
   automate that step).
-- **512MB RAM on Render's free tier is fine; 0.1 CPU is not.** RAM measured locally (via
-  `docker stats`, Apple Silicon via colima, not Render's own infra) at ~283MB idle / ~359MB after a
-  `/predict` call - comfortably inside 512MB for a single request. CPU is the real problem: the
-  same request that takes ~450ms locally took **~99 seconds** against the live Render deployment
-  (`inference_ms` in the actual response). Render's free tier allocates a heavily-throttled
-  one-tenth of a CPU core, and that's simply not enough compute for a CNN forward pass, even
-  YOLO11n's, in anything close to real time. This is the tier's real limiting factor, not RAM -
-  a paid Render instance (more CPU, not more RAM) would be the fix, not anything in this repo's
-  code. Treat the live demo as a correctness proof, not a latency demo.
+- **Render resource constraint**: On Render's free tier, RAM is sufficient; CPU is the bottleneck. A `/predict` request that took approximately 450 ms locally took approximately 99 seconds against the live Render deployment. The free tier's heavily throttled 0.1 CPU allocation. The live deployment should be treated as a correctness and integration proof, not a latency demonstration.
 
 ## License
 
